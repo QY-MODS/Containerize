@@ -13,13 +13,17 @@ void OnMessage(SKSE::MessagingInterface::Message* message) {
             return;
         }
         M = Manager::GetSingleton(sources);
+		if (!M) {
+			logger::critical("Failed to load Manager.");
+			return;
+		}
+        eventSink = OurEventSink::GetSingleton(M);
     }
     if (message->type == SKSE::MessagingInterface::kPostLoadGame ||
         message->type == SKSE::MessagingInterface::kNewGame) {
         if (eventsinks_added) return;
-        if (!M) return;
+        if (!M || !eventSink) return;
         // EventSink
-        eventSink = OurEventSink::GetSingleton(M);
         auto* eventSourceHolder = RE::ScriptEventSourceHolder::GetSingleton();
         eventSourceHolder->AddEventSink<RE::TESEquipEvent>(eventSink);
         eventSourceHolder->AddEventSink<RE::TESActivateEvent>(eventSink);
@@ -39,7 +43,7 @@ void OnMessage(SKSE::MessagingInterface::Message* message) {
 void SaveCallback(SKSE::SerializationInterface* serializationInterface) {
     DISABLE_IF_UNINSTALLED 
     logger::trace("Saving Data to skse co-save.");
-	eventSink->block_eventsinks.store(true);
+	eventSink->SetBlockSinks(true);
     M->SendData();
     if (!M->Save(serializationInterface, Settings::kDataKey, Settings::kSerializationVersion)) {
         logger::critical("Failed to save Data");
@@ -50,7 +54,7 @@ void SaveCallback(SKSE::SerializationInterface* serializationInterface) {
         logger::critical("Failed to save Data");
     }
     logger::trace("Data saved to skse co-save.");
-	eventSink->block_eventsinks.store(false);
+	eventSink->SetBlockSinks(false);
 }
 
 void LoadCallback(SKSE::SerializationInterface* serializationInterface) {
@@ -58,8 +62,7 @@ void LoadCallback(SKSE::SerializationInterface* serializationInterface) {
     
     logger::info("Loading Data from skse co-save.");
     
-    eventSink->block_eventsinks.store(true);
-
+    eventSink->Reset();
     M->Reset();
     auto* DFT = DynamicFormTracker::GetSingleton();
     DFT->Reset();
@@ -68,6 +71,7 @@ void LoadCallback(SKSE::SerializationInterface* serializationInterface) {
     std::uint32_t version;
     std::uint32_t length;
 
+    eventSink->SetBlockSinks(true);
 
     while (serializationInterface->GetNextRecordInfo(type, version, length)) {
         bool is_before_0_7 = false;
@@ -112,16 +116,12 @@ void LoadCallback(SKSE::SerializationInterface* serializationInterface) {
         }
     }
 
-    logger::info("Resetting.");
-	eventSink->listen_weight_limit.store(false);
-	eventSink->furniture_entered.store(false);
-	eventSink->listen_crosshair_ref.store(true);
     logger::info("Receiving Data.");
     DFT->ReceiveData();
     SKSE::GetTaskInterface()->AddTask([]() { 
         M->ReceiveData(); 
         logger::info("Data loaded from skse co-save.");
-	    eventSink->block_eventsinks.store(false);
+	    eventSink->SetBlockSinks(false);
         }
     );
 }
@@ -136,7 +136,6 @@ void InitializeSerialization() {
 }
 
 SKSEPluginLoad(const SKSE::LoadInterface *skse) {
-
     SetupLog();
     SKSE::Init(skse);
     InitializeSerialization();

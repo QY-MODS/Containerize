@@ -1,35 +1,54 @@
 #include "Events.h"
 
+void OurEventSink::Reset() {
+	equipped = false;
+	fake_equipped_id = 0;
+	fake_id_ = 0;
+	ReShowMenu = "";
+	furniture = nullptr;
+	furniture_entered = false;
+	listen_crosshair_ref = true;
+	listen_weight_limit = false;
+	block_droptake = false;
+	block_eventsinks = false;
+	external_container_refid = 0;
+	block_eventsinks = false;
+}
+
+
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESEquipEvent* event,
     RE::BSTEventSource<RE::TESEquipEvent>*) {
-    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!event->actor->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
+	if (!event->equipped) return RE::BSEventNotifyControl::kContinue;
         
-    if (!M->IsFakeContainer(event->baseObject)) return RE::BSEventNotifyControl::kContinue;
+    //if (!M->IsFakeContainer(event->baseObject)) return RE::BSEventNotifyControl::kContinue;
 
     fake_equipped_id = event->equipped ? event->baseObject : 0;
-    logger::trace("Fake container equipped: {}", fake_equipped_id);
+    //logger::trace("Fake container equipped: {}", fake_equipped_id);
 
     if (!ReShowMenu.empty()) return RE::BSEventNotifyControl::kContinue;
 
-    if (const auto ui_ = RE::UI::GetSingleton(); !(ui_->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || ui_->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) ||
-                                                   ui_->IsMenuOpen(RE::ContainerMenu::MENU_NAME))) return RE::BSEventNotifyControl::kContinue;
-        
-    if (event->equipped) {
+    if (const auto ui = RE::UI::GetSingleton(); !(ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) ||
+                                                   ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME))) return RE::BSEventNotifyControl::kContinue;
+
+    /*if (event->equipped) {
         logger::trace("Item {} was equipped. equipped: {}", event->baseObject,equipped);
     } else {
         logger::trace("Item {} was unequipped. equipped: {}", event->baseObject, equipped);
-    }
+    }*/
+
     fake_id_ = event->baseObject;
     equipped = true;
+
     return RE::BSEventNotifyControl::kContinue;
 }
 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESActivateEvent* event,
     RE::BSTEventSource<RE::TESActivateEvent>*) {
         
-    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!event->objectActivated) return RE::BSEventNotifyControl::kContinue;
     if (!event->actionRef->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
@@ -58,10 +77,10 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESActivateEvent* 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEvent* event,
     RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
 
-    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event->crosshairRef) return RE::BSEventNotifyControl::kContinue;
     if (event->crosshairRef->extraList.GetCount()>1) return RE::BSEventNotifyControl::kContinue;
-    if (!listen_crosshair_ref.load()) return RE::BSEventNotifyControl::kContinue;
+    if (!listen_crosshair_ref) return RE::BSEventNotifyControl::kContinue;
 
     // prevent player to catch it in the air
     //if (M->IsFakeContainer(event->crosshairRef.get()->GetBaseObject()->GetFormID())) event->crosshairRef->SetActivationBlocked(1);
@@ -71,9 +90,9 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEven
     if (const auto crosshair_refr = event->crosshairRef.get(); !M->IsRealContainer(crosshair_refr)) {
             
         // if the fake items are not in it we need to place them (this happens upon load game)
-        listen_crosshair_ref.store(false);
+        listen_crosshair_ref = false;
         M->HandleFakePlacement(crosshair_refr); 
-        listen_crosshair_ref.store(true);
+        listen_crosshair_ref = true;
 
         /*SKSE::GetTaskInterface()->AddTask([crosshair_refr]() { 
                 }
@@ -97,7 +116,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEven
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent* event,
     RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
         
-    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
 
     //logger::trace("Menu event: {} {}", event->menuName, event->opening ? "opened" : "closed");
@@ -130,12 +149,12 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
     if (!M->listen_menu_close.load()) return RE::BSEventNotifyControl::kContinue;
     if (event->menuName != RE::ContainerMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
     if (event->opening) {
-        listen_weight_limit.store(true);
+        listen_weight_limit = true;
     } 
     else {
         logger::trace("Our Container menu closed.");
-        listen_weight_limit.store(false);
-        M->listen_menu_close.store(false);
+        listen_weight_limit = false;
+        listen_menu_close = false;
         logger::trace("listen_menuclose: {}", M->listen_menu_close.load());
         if (!ReShowMenu.empty()){
             M->UnHideReal(fake_id_);
@@ -187,10 +206,50 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
     return RE::BSEventNotifyControl::kContinue;
 }
 
-RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChangedEvent* event,
-    RE::BSTEventSource<RE::TESContainerChangedEvent>*) {
+RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESFurnitureEvent* event,
+    RE::BSTEventSource<RE::TESFurnitureEvent>*) {
         
-    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (!event) return RE::BSEventNotifyControl::kContinue;
+    if (!event->actor->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
+    if (furniture_entered && event->type == RE::TESFurnitureEvent::FurnitureEventType::kEnter)
+        return RE::BSEventNotifyControl::kContinue;
+    if (!furniture_entered && event->type == RE::TESFurnitureEvent::FurnitureEventType::kExit)
+        return RE::BSEventNotifyControl::kContinue;
+    if (event->targetFurniture->GetBaseObject()->formType.underlying() != 40) return RE::BSEventNotifyControl::kContinue;
+
+    logger::trace("Furniture event");
+
+    const auto bench = event->targetFurniture->GetBaseObject()->As<RE::TESFurniture>();
+    if (!bench) return RE::BSEventNotifyControl::kContinue;
+    if (const auto bench_type = static_cast<std::uint8_t>(bench->workBenchData.benchType.get()); bench_type != 2 && bench_type != 3 && bench_type != 7) return RE::BSEventNotifyControl::kContinue;
+
+    if (event->type == RE::TESFurnitureEvent::FurnitureEventType::kEnter) {
+        logger::trace("Furniture event: Enter {}", event->targetFurniture->GetName());
+        furniture_entered = true;
+        furniture = event->targetFurniture;
+        //M->HandleCraftingEnter();
+    }
+    else if (event->type == RE::TESFurnitureEvent::FurnitureEventType::kExit) {
+        logger::trace("Furniture event: Exit {}", event->targetFurniture->GetName());
+        if (event->targetFurniture == furniture) {
+            M->HandleCraftingExit();
+            furniture_entered = false;
+            furniture = nullptr;
+        }
+    }
+    else {
+        logger::trace("Furniture event: Unknown");
+    }
+
+
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChangedEvent* event,
+                                                    RE::BSTEventSource<RE::TESContainerChangedEvent>*) {
+        
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!M->listen_container_change.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!listen_crosshair_ref) return RE::BSEventNotifyControl::kContinue;
@@ -302,7 +361,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChange
 }
 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(RE::InputEvent* const* evns, RE::BSTEventSource<RE::InputEvent*>*) {
-    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!*evns) return RE::BSEventNotifyControl::kContinue;
     if (!equipped) return RE::BSEventNotifyControl::kContinue; // this also ensures that we have only the menus we want
 

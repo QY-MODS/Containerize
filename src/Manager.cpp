@@ -71,7 +71,7 @@ void Manager::ActivateChest(RE::TESObjectREFR* chest, const char* chest_name) {
     listen_menu_close.store(true);
     unownedChest->fullName = chest_name;
     logger::trace("Activating chest with name: {}", chest_name);
-    logger::trace("listenclose: {}", listen_menu_close.load());
+    //logger::trace("listenclose: {}", listen_menu_close.load());
     Activate(chest);
 }
 
@@ -1342,8 +1342,8 @@ void Manager::MsgBoxCallbackMore(const int result) {
                     ChestToFakeContainer[GetRealContainerChest(current_container)->GetFormID()].innerKey)
                 ->GetName();
             const char* property_name = "text";
-            auto args = RE::MakeFunctionArguments(std::move(menuID), std::move(emptyForm), std::move(emptyForm2));
-            auto args2 =
+            const auto args = RE::MakeFunctionArguments(std::move(menuID), std::move(emptyForm), std::move(emptyForm2));
+            const auto args2 =
                 RE::MakeFunctionArguments(std::move(menuID), std::move(property_name), std::move(container_name));
             if (vm->DispatchStaticCall("UIExtensions", "SetMenuPropertyString", args2, callback)) {
                 if (vm->DispatchStaticCall("UIExtensions", "OpenMenu", args, callback)) listen_menu_close.store(true);

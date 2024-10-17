@@ -44,6 +44,7 @@ class OurEventSink : public RE::BSTEventSink<RE::TESEquipEvent>,
 
 
 	std::atomic<bool> block_droptake = false;
+	bool listen_menu_close = true;
 
 
     FormID fake_equipped_id = 0;
@@ -57,10 +58,10 @@ class OurEventSink : public RE::BSTEventSink<RE::TESEquipEvent>,
 
 public:
 
-	std::atomic<bool> block_eventsinks = false;
-	std::atomic<bool> listen_crosshair_ref = true;
-	std::atomic<bool> furniture_entered = false;
-	std::atomic<bool> listen_weight_limit = false;
+	bool block_eventsinks = false;
+	bool listen_crosshair_ref = true;
+	bool furniture_entered = false;
+	bool listen_weight_limit = false;
     Manager* M = nullptr;
     RefID external_container_refid = 0;  // set in input event
 
@@ -71,6 +72,12 @@ public:
         static OurEventSink singleton(manager);
         return &singleton;
     }
+
+	void SetBlockSinks(const bool block) {
+		block_eventsinks = block;
+	}
+
+    void Reset();
 
 
     RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* event, RE::BSTEventSource<RE::TESEquipEvent>*) override;
@@ -88,47 +95,10 @@ public:
                                           RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
 
     RE::BSEventNotifyControl ProcessEvent(const RE::TESFurnitureEvent* event,
-                                          RE::BSTEventSource<RE::TESFurnitureEvent>*) {
-        
-        if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
-        if (!event) return RE::BSEventNotifyControl::kContinue;
-        if (!event->actor->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
-        if (furniture_entered && event->type == RE::TESFurnitureEvent::FurnitureEventType::kEnter)
-            return RE::BSEventNotifyControl::kContinue;
-        if (!furniture_entered && event->type == RE::TESFurnitureEvent::FurnitureEventType::kExit)
-			return RE::BSEventNotifyControl::kContinue;
-        if (event->targetFurniture->GetBaseObject()->formType.underlying() != 40) return RE::BSEventNotifyControl::kContinue;
-
-        logger::trace("Furniture event");
-
-        const auto bench = event->targetFurniture->GetBaseObject()->As<RE::TESFurniture>();
-        if (!bench) return RE::BSEventNotifyControl::kContinue;
-        if (const auto bench_type = static_cast<std::uint8_t>(bench->workBenchData.benchType.get()); bench_type != 2 && bench_type != 3 && bench_type != 7) return RE::BSEventNotifyControl::kContinue;
-
-        if (event->type == RE::TESFurnitureEvent::FurnitureEventType::kEnter) {
-            logger::trace("Furniture event: Enter {}", event->targetFurniture->GetName());
-            furniture_entered = true;
-            furniture = event->targetFurniture;
-            //M->HandleCraftingEnter();
-        }
-        else if (event->type == RE::TESFurnitureEvent::FurnitureEventType::kExit) {
-            logger::trace("Furniture event: Exit {}", event->targetFurniture->GetName());
-            if (event->targetFurniture == furniture) {
-                M->HandleCraftingExit();
-                furniture_entered = false;
-                furniture = nullptr;
-            }
-        }
-        else {
-			logger::trace("Furniture event: Unknown");
-		}
-
-
-		return RE::BSEventNotifyControl::kContinue;
-    }
+                                          RE::BSTEventSource<RE::TESFurnitureEvent>*) override;
 
     RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event,
-                                                                   RE::BSTEventSource<RE::TESContainerChangedEvent>*) override;
+                                          RE::BSTEventSource<RE::TESContainerChangedEvent>*) override;
 
     RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* evns, RE::BSTEventSource<RE::InputEvent*>*) override;
 
