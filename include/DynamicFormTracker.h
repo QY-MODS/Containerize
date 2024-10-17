@@ -33,10 +33,10 @@ class DynamicFormTracker : public DFSaveLoadData {
             for (auto it2 = formset.begin(); it2 != formset.end();) {
                 if (!GetFormByID(*it2)) {
                     logger::trace("Form with ID {:x} does not exist. Removing from formset.", *it2);
-                    it2 = formset.erase(it2);
                     customIDforms.erase(*it2);
                     active_forms.erase(*it2);
                     Unreserve(*it2);
+                    it2 = formset.erase(it2);
                     //deleted_forms.erase(*it2);
                 } else {
                     ++it2;
@@ -45,7 +45,7 @@ class DynamicFormTracker : public DFSaveLoadData {
         }
     }
 
-	[[nodiscard]] const float GetActiveEffectElapsed(const FormID dyn_formid) {
+	[[nodiscard]] float GetActiveEffectElapsed(const FormID dyn_formid) const {
 		for (const auto& act_eff : act_effs) {
 			if (act_eff.dynamicFormid == dyn_formid) {
 				return act_eff.elapsed;
@@ -54,7 +54,7 @@ class DynamicFormTracker : public DFSaveLoadData {
 		return -1.f;
 	}
 
-    [[nodiscard]] const bool IsTracked(const FormID dynamic_formid){
+    [[nodiscard]] bool IsTracked(const FormID dynamic_formid) {
         for (const auto& [base_pair, dyn_formset] : forms) {
 			if (dyn_formset.contains(dynamic_formid)) {
 				return true;
@@ -72,7 +72,7 @@ class DynamicFormTracker : public DFSaveLoadData {
 		return nullptr;
 	}
 
-    void ReviveDynamicForm(RE::TESForm* fake, RE::TESForm* base, const FormID setFormID) {
+    static void ReviveDynamicForm(RE::TESForm* fake, RE::TESForm* base, const FormID setFormID) {
         using namespace DynamicForm;
         fake->Copy(base);
         auto weaponBaseForm = base->As<RE::TESObjectWEAP>();
@@ -176,7 +176,7 @@ class DynamicFormTracker : public DFSaveLoadData {
     }
 
     template <typename T>
-    const FormID Create(T* baseForm, const RE::FormID setFormID = 0) {
+    FormID Create(T* baseForm, const RE::FormID setFormID = 0) {
         if (block_create) return 0;
 
         //std::lock_guard<std::mutex> lock(mutex);
@@ -224,7 +224,7 @@ class DynamicFormTracker : public DFSaveLoadData {
                 logger::critical("Failed to delete form with ID {:x}.", new_formid);
             }
             return 0;
-        };
+        }
 
         if (new_formid >= 0xFF3DFFFF){
             logger::critical("Dynamic FormID limit reached!!!!!!");
@@ -238,7 +238,7 @@ class DynamicFormTracker : public DFSaveLoadData {
         return new_formid;
     }
 
-    const FormID GetByCustomID(const uint32_t custom_id, const FormID base_formid, std::string base_editorid) {
+    FormID GetByCustomID(const uint32_t custom_id, const FormID base_formid, std::string base_editorid) {
         const auto formset = GetFormSet(base_formid, base_editorid);
         if (formset.empty()) return 0;
         for (const auto _formid : formset) {
@@ -247,12 +247,25 @@ class DynamicFormTracker : public DFSaveLoadData {
         return 0;
     }
 
-    const bool IsActive(const FormID a_formid) {
+    bool IsActive(const FormID a_formid) const {
         return active_forms.contains(a_formid);
 	}
 
+    std::set<FormID> GetFormSet(const FormID base_formid, std::string base_editorid = "") {
+        if (base_editorid.empty()) {
+            base_editorid = GetEditorID(base_formid);
+            if (base_editorid.empty()) {
+                return {};
+            }
+        }
+        const std::pair<FormID, std::string> key = {base_formid, base_editorid};
+        if (forms.contains(key)) return forms[key];
+        return {};
+    }
+
+    // makes it active
     const RE::TESForm* _yield(const FormID dynamic_formid, RE::TESForm* base_form) {
-        if (auto newForm = RE::TESForm::LookupByID(dynamic_formid)) {
+        if (const auto newForm = RE::TESForm::LookupByID(dynamic_formid)) {
             if (std::strlen(newForm->GetName()) == 0) {
                 ReviveDynamicForm(newForm, base_form, 0);
 			}
@@ -261,26 +274,26 @@ class DynamicFormTracker : public DFSaveLoadData {
 					logger::warn("Active dynamic forms limit reached!!!");
                     block_create = true;
 				}
-            };
+            }
             
 			return newForm;
 		}
 		return nullptr;
 	}
 
-    [[nodiscard]] const bool _delete(const std::pair<FormID, std::string> base, const FormID dynamic_formid) {
+    [[nodiscard]] bool _delete(const std::pair<FormID, std::string>& base, const FormID dynamic_formid) {
         if (protected_forms.contains(dynamic_formid)) {
 			logger::warn("Form with ID {:x} is protected.", dynamic_formid);
 			return false;
 		}
         if (!forms.contains(base)) return false;
 
-        if (auto newForm = RE::TESForm::LookupByID(dynamic_formid)) {
+        if (const auto newForm = RE::TESForm::LookupByID(dynamic_formid)) {
 
-            if (auto bound_temp = newForm->As<RE::TESBoundObject>(); bound_temp) {
-                auto player = RE::PlayerCharacter::GetSingleton();
+            if (const auto bound_temp = newForm->As<RE::TESBoundObject>(); bound_temp) {
+                const auto player = RE::PlayerCharacter::GetSingleton();
                 auto player_inventory = player->GetInventory();
-                if (auto it = player_inventory.find(bound_temp); it != player_inventory.end()) {
+                if (const auto it = player_inventory.find(bound_temp); it != player_inventory.end()) {
                     player->RemoveItem(bound_temp, it->second.first, RE::ITEM_REMOVE_REASON::kRemove, nullptr, nullptr);
                 }
 			}
@@ -314,7 +327,7 @@ class DynamicFormTracker : public DFSaveLoadData {
         return false;
     }
 
-    [[nodiscard]] const bool _underlying_check(const RE::TESForm* underlying, const RE::TESForm* derivative) const {
+    [[nodiscard]] static bool _underlying_check(const RE::TESForm* underlying, const RE::TESForm* derivative) {
         if (underlying->GetFormType() != derivative->GetFormType()) {
             logger::trace("Form types do not match.");
             return false;
@@ -387,7 +400,7 @@ public:
 
     const char* GetType() override { return "DynamicFormTracker"; }
 
-    [[nodiscard]] const bool Delete(const FormID dynamic_formid) {
+    [[nodiscard]] bool Delete(const FormID dynamic_formid) {
 		std::lock_guard<std::mutex> lock(mutex);
 		for (auto& [base, formset] : forms) {
 			if (formset.contains(dynamic_formid)) {
@@ -395,8 +408,10 @@ public:
 					logger::error("Failed to delete form with ID {:x}.", dynamic_formid);
 					return false;
 				}
+				return true;
 			}
 		}
+        return false;
 	}
 
     void DeleteInactives() {
@@ -422,8 +437,7 @@ public:
 		for (const auto& [base, formset] : forms) {
 			source_forms.insert(base);
 		}
-        for (const auto& act_eff : act_effs) {
-            const auto base_formid = act_eff.baseFormid;
+        for (const auto& [base_formid, dynamicFormid, elapsed, custom_id] : act_effs) {
             const auto base_form = GetFormByID(base_formid);
             if (!base_form) {
 				logger::error("Failed to get base form.");
@@ -433,7 +447,7 @@ public:
             source_forms.insert({base_formid, base_editorid});
 		}
 
-        auto source_forms_vector = std::vector<std::pair<FormID, std::string>>(source_forms.begin(), source_forms.end());
+        auto source_forms_vector = std::vector(source_forms.begin(), source_forms.end());
 
 		return source_forms_vector;
     }
@@ -543,19 +557,7 @@ public:
         protected_forms.erase(dynamic_formid);
 	}
 
-    std::set<FormID> GetFormSet(const FormID base_formid, std::string base_editorid = "") {
-        if (base_editorid.empty()) {
-            base_editorid = GetEditorID(base_formid);
-            if (base_editorid.empty()) {
-                return {};
-            }
-        }
-        const std::pair<FormID, std::string> key = {base_formid, base_editorid};
-        if (forms.contains(key)) return forms[key];
-        return {};
-    };
-
-    size_t GetNDeleted() {
+    size_t GetNDeleted() const {
 		return deleted_forms.size();
 	}
 
@@ -565,17 +567,16 @@ public:
         Clear();
 
         act_effs.clear();
-        auto act_eff_list = RE::PlayerCharacter::GetSingleton()->AsMagicTarget()->GetActiveEffectList();
+        const auto act_eff_list = RE::PlayerCharacter::GetSingleton()->AsMagicTarget()->GetActiveEffectList();
 
         int n_act_effs = 0;
         std::set<FormID> act_effs_temp;
         for (auto it = act_eff_list->begin(); it != act_eff_list->end(); ++it) {
             if (const auto* act_eff = *it){
-                const auto act_eff_formid = act_eff->spell->GetFormID();
-                if (active_forms.contains(act_eff_formid)) {
+                if (const auto act_eff_formid = act_eff->spell->GetFormID(); active_forms.contains(act_eff_formid)) {
                     if (act_effs_temp.contains(act_eff_formid)) logger::warn("Active effect already exists in act effs.");
                     else n_act_effs++;
-                    bool has_customid = customIDforms.contains(act_eff_formid);
+                    const bool has_customid = customIDforms.contains(act_eff_formid);
                     const uint32_t customid_temp = has_customid ? customIDforms[act_eff_formid] : 0;
                     act_effs.push_back({GetOGFormOfDynamic(act_eff_formid)->GetFormID(),
                                         act_eff_formid,
@@ -588,10 +589,10 @@ public:
 
         int n_fakes = 0;
         for (const auto& [base_pair, dyn_formset] : forms) {
-            DFSaveDataLHS lhs({base_pair.first, base_pair.second});
+            const DFSaveDataLHS lhs({base_pair.first, base_pair.second});
             DFSaveDataRHS rhs;
 			for (const auto dyn_formid : dyn_formset) {
-                if (!IsActive(dyn_formid)) logger::warn("Inactive form {:x} found in forms set.",dyn_formid);
+                if (!IsActive(dyn_formid)) logger::info("Inactive form {:x} found in forms set.",dyn_formid);
                 const bool has_customid = customIDforms.contains(dyn_formid);
                 const uint32_t customid = has_customid ? customIDforms[dyn_formid] : 0;
                 const float act_eff_elpsd = GetActiveEffectElapsed(dyn_formid);
@@ -605,7 +606,7 @@ public:
         logger::info("Number of dynamic forms sent: {}", n_fakes);
         logger::info("Number of active effects sent: {}", n_act_effs);
         logger::info("--------Data sent (DFT) ---------");
-    };
+    }
 
     void ReceiveData() {
         // std::lock_guard<std::mutex> lock(mutex);
@@ -619,10 +620,8 @@ public:
             const auto temp_form = GetFormByID(0, base_editorid);
             if (!temp_form) logger::critical("Failed to get base form.");
             else base_formid = temp_form->GetFormID();
-            for (const auto& saveData : rhs) {
-                const auto dyn_formid = saveData.dyn_formid;
-                const auto [has_customid, customid] = saveData.custom_id;
-                const auto act_eff_elpsd = saveData.acteff_elapsed;
+            for (const auto& [dyn_formid, custom_id, act_eff_elpsd] : rhs) {
+                const auto [has_customid, customid] = custom_id;
                 if (act_eff_elpsd >= 0.f) {
                     act_effs.push_back({base_formid, dyn_formid, act_eff_elpsd, {has_customid, customid}});
                     n_act_effs++;
@@ -633,7 +632,8 @@ public:
                 } else if (const auto dyn_form_ref = RE::TESForm::LookupByID<RE::TESObjectREFR>(dyn_formid)) {
                     logger::info("Dynamic form {:x} is a refr with name {}.", dyn_formid, dyn_form->GetName());
                     continue;
-                } else if (!_underlying_check(temp_form, dyn_form)) {
+                }
+                else if (!_underlying_check(temp_form, dyn_form)) {
                     // bcs load callback happens after the game loads, there is a chance that the game will assign new
                     // stuff to "previously" our dynamic formid especially for stuff like dynamic food which is not
                     // serialized by the game
@@ -641,6 +641,7 @@ public:
                                   dyn_form->GetName());
                     continue;
                 }
+
                 if (forms.contains({base_formid, base_editorid}) &&
                     forms[{base_formid, base_editorid}].contains(dyn_formid)) {
                     logger::trace("Form with ID {:x} already exist for baseid {} and editorid {}.", dyn_formid,
@@ -664,7 +665,7 @@ public:
 
         logger::info("--------Data received (DFT) ---------");
 
-	};
+	}
 
     void Reset() {
 		// std::lock_guard<std::mutex> lock(mutex);
@@ -676,7 +677,7 @@ public:
         protected_forms.clear();
 		act_effs.clear();
         block_create = false;
-	};
+	}
 
     void Print() {
         for (const auto& [base, formset] : forms) {
@@ -691,37 +692,34 @@ public:
 
         std::map<FormID, float> new_act_effs; // terrible name
         // i need to change the formids in act_effs if they are not valid to valid ones
-        for (auto it = act_effs.begin(); it != act_effs.end();++it) {
-            const auto elpsd = it->elapsed;
-            if (it->elapsed < 0.f) {
+        for (auto& [baseFormid, dynamicFormid, elapsed, customid] : act_effs) {
+            if (elapsed < 0.f) {
 				logger::error("Elapsed time is negative. Removing from act effs.");
 				continue;
 			}
-            const auto& [has_cstmid, custom_id] = it->custom_id;
-            const auto base_mg_item = GetFormByID(it->baseFormid);
-            const auto dynamicFormid = it->dynamicFormid;
+            const auto& [has_cstmid, custom_id] = customid;
+            const auto base_mg_item = GetFormByID(baseFormid);
             if (!base_mg_item) {
 				logger::error("Failed to get base form.");
 				continue;
 			}
             if (!has_cstmid) {
-                new_act_effs[dynamicFormid] = elpsd;
+                new_act_effs[dynamicFormid] = elapsed;
                 continue;
             }
-            const auto dyn_formid = GetByCustomID(custom_id, it->baseFormid, clib_util::editorID::get_editorID(base_mg_item));
+            const auto dyn_formid = GetByCustomID(custom_id, baseFormid, clib_util::editorID::get_editorID(base_mg_item));
             if (!dyn_formid) {
                 logger::error("Failed to get form by custom id. Removing from act effs.");
                 continue;
             }
-			new_act_effs[dyn_formid] = elpsd;
+			new_act_effs[dyn_formid] = elapsed;
 		}
 
         act_effs.clear();
         if (new_act_effs.empty()) return;
 
-
-        auto plyr = RE::PlayerCharacter::GetSingleton();
-        auto mg_target = plyr->AsMagicTarget();
+        const auto plyr = RE::PlayerCharacter::GetSingleton();
+        const auto mg_target = plyr->AsMagicTarget();
         if (!mg_target) {
             logger::error("Failed to get player as magic target.");
             return;
@@ -736,7 +734,7 @@ public:
             }
         }
 
-        auto mg_caster = plyr->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
+        const auto mg_caster = plyr->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
         if (!mg_caster) {
             logger::error("Failed to get player as magic caster.");
             return;

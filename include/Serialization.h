@@ -58,7 +58,7 @@ public:
     void Clear() {
         Locker locker(m_Lock);
         m_Data.clear();
-    };
+    }
 
 protected:
     std::map<T,U> m_Data;
