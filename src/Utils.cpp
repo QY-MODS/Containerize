@@ -464,7 +464,11 @@ int32_t xData::GetXDataCostOverride(RE::ExtraDataList* xList) {
 
 void xData::AddTextDisplayData(RE::ExtraDataList* extraDataList, const std::string& displayName) {
     if (!extraDataList) return;
-    if (extraDataList->HasType(RE::ExtraDataType::kTextDisplayData)) return;
+    if (extraDataList->HasType(RE::ExtraDataType::kTextDisplayData)) {
+        auto* txtdisplaydata = extraDataList->GetByType<RE::ExtraTextDisplayData>();
+        txtdisplaydata->SetName(displayName.c_str());
+        return;
+    }
     const auto textDisplayData = RE::BSExtraData::Create<RE::ExtraTextDisplayData>();
     textDisplayData->SetName(displayName.c_str());
     extraDataList->Add(textDisplayData);
@@ -620,7 +624,8 @@ void Inventory::EquipItem(const RE::TESBoundObject* item, const bool unequip)
                         player_ref, (*it)->object, (*it)->extraLists->front(), 1,
                         (const RE::BGSEquipSlot*)nullptr, true, false, false);
                 }
-            } else {
+            }
+            else {
                 if ((*it)->extraLists->empty()) {
                     RE::ActorEquipManager::GetSingleton()->EquipObject(
                         player_ref, (*it)->object, nullptr, 1,
@@ -877,5 +882,14 @@ void xData::Copy::CopyOwnership(const RE::ExtraOwnership* from, RE::ExtraOwnersh
 
 void MsgBoxesNotifs::SkyrimMessageBox::Show(const std::string& bodyText, std::vector<std::string> buttonTextValues, std::function<void(unsigned int)> callback)
 {
-    SkyrimMessageBox::Show(bodyText, buttonTextValues, callback);
+    const auto* factoryManager = RE::MessageDataFactoryManager::GetSingleton();
+    const auto* uiStringHolder = RE::InterfaceStrings::GetSingleton();
+    auto* factory = factoryManager->GetCreator<RE::MessageBoxData>(
+        uiStringHolder->messageBoxData);  // "MessageBoxData" <--- can we just use this string?
+    auto* messagebox = factory->Create();
+    const RE::BSTSmartPointer<RE::IMessageBoxCallback> messageCallback = RE::make_smart<MessageBoxResultCallback>(callback);
+    messagebox->callback = messageCallback;
+    messagebox->bodyText = bodyText;
+    for (auto& text : buttonTextValues) messagebox->buttonText.push_back(text.c_str());
+    messagebox->QueueMessage();
 }

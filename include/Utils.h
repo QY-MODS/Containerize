@@ -176,7 +176,7 @@ namespace MsgBoxesNotifs {
 
         public:
             ~MessageBoxResultCallback() override {}
-            MessageBoxResultCallback(std::function<void(unsigned int)> callback) : _callback(callback) {}
+            explicit MessageBoxResultCallback(std::function<void(unsigned int)> callback) : _callback(callback) {}
             void Run(RE::IMessageBoxCallback::Message message) override {
                 _callback(static_cast<unsigned int>(message));
             }
