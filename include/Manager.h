@@ -161,8 +161,6 @@ public:
     std::atomic<bool> listen_container_change = true;
 
 
-    std::unordered_map<std::string, bool> _other_settings;
-
     void OnActivateContainer(RE::TESObjectREFR* a_container, bool equip=false);;
 
     // places fake objects in external containers after load game
@@ -231,6 +229,8 @@ public:
     void SendData();
 
     void ReceiveData();
+
+	const std::vector<Source>& GetSources() const { return sources; }
 };
 
 
@@ -267,7 +267,7 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, const 
     // get the ench costoverride of fake in player inventory
 
     int x_0 = real_container->GetGoldValue();
-    if (_other_settings[Settings::otherstuffKeys[3]]) {
+    if (other_settings[Settings::otherstuffKeys[3]]) {
         logger::trace("VALUE BEFORE {}", x_0);
         FunctionsSkyrim::FormTraits<T>::SetValue(fake_form, x_0);
         auto temp_entry = chest_inventory.find(real_container);

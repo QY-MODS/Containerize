@@ -24,7 +24,7 @@ class ConversationCallbackFunctor final : public RE::BSScript::IStackCallbackFun
     void SetObject(const RE::BSTSmartPointer<RE::BSScript::Object>&) override {};
 
 public:
-    ConversationCallbackFunctor(Manager* mngr) : M(mngr) {}
+    explicit ConversationCallbackFunctor(Manager* mngr) : M(mngr) {}
 };
 
 class OurEventSink final : public RE::BSTEventSink<RE::TESEquipEvent>,

@@ -6,7 +6,7 @@ struct FormRefID {
     RefID innerKey;   // refid of unowned
 
     FormRefID() : outerKey(0), innerKey(0) {}
-    FormRefID(FormID value1, RefID value2) : outerKey(value1), innerKey(value2) {}
+    FormRefID(const FormID value1, const RefID value2) : outerKey(value1), innerKey(value2) {}
 
     bool operator<(const FormRefID& other) const;
 };
@@ -50,11 +50,11 @@ struct Source {
     std::string editorid;
     SourceData data;
 
-    Source(const std::uint32_t id, const std::string id_str, const float capacity, const bool cs);
+    Source(std::uint32_t id, std::string id_str, float capacity, bool cs);
 
     [[nodiscard]] std::string_view GetName() const;
 
     [[nodiscard]] RE::TESBoundObject* GetBoundObject() const;
 
-    void AddInitialItem(const FormID form_id, const Count count);;
+    void AddInitialItem(FormID form_id, Count count);;
 };

@@ -18,6 +18,8 @@ void OnMessage(SKSE::MessagingInterface::Message* message) {
 			return;
 		}
         eventSink = OurEventSink::GetSingleton(M);
+        UI::Register(M);
+        logger::info("MCP registered.");
     }
     if (message->type == SKSE::MessagingInterface::kPostLoadGame ||
         message->type == SKSE::MessagingInterface::kNewGame) {
@@ -137,6 +139,7 @@ void InitializeSerialization() {
 
 SKSEPluginLoad(const SKSE::LoadInterface *skse) {
     SetupLog();
+    LoadOtherSettings();
     SKSE::Init(skse);
     InitializeSerialization();
     SKSE::GetMessagingInterface()->RegisterListener(OnMessage);

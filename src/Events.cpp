@@ -37,7 +37,7 @@ void OurEventSink::ReShow()
     /*if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {
         M->RevertEquip(fake_id_, external_container_refid);
     }*/
-    if (M->_other_settings[Settings::otherstuffKeys[2]]) {
+    if (other_settings[Settings::otherstuffKeys[2]]) {
         logger::trace("Returning to initial menu: {}", ReShowMenu);
         if (const auto queue = RE::UIMessageQueue::GetSingleton()) {
             if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {

@@ -32,7 +32,7 @@ namespace Settings {
         };
 
 
-    const size_t otherstuffSize = 5;
+    constexpr size_t otherstuffSize = 5;
     const std::array<std::string, otherstuffSize> os_comments =
 		{";Set to false to suppress the 'INI changed between saves' message.",
 		"; Set to true to remove the initial carry weight bonuses on your container items.",
@@ -71,7 +71,21 @@ namespace Settings {
 };
 
 std::vector<Source> LoadSources();
-std::unordered_map<std::string,bool> LoadOtherSettings();
+void LoadOtherSettings();
 Source parseSource_(const YAML::Node& config);
 std::vector<Source> LoadYAMLSources();
 std::vector<Source> LoadINISources();
+
+inline std::unordered_map<std::string,bool> other_settings;
+
+
+namespace LogSettings {
+#ifndef NDEBUG
+    inline bool log_trace = true;
+#else
+	inline bool log_trace = false;
+#endif
+    inline bool log_info = true;
+    inline bool log_warning = true;
+    inline bool log_error = true;
+};
