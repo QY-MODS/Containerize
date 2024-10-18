@@ -251,6 +251,10 @@ class DynamicFormTracker : public DFSaveLoadData {
         return active_forms.contains(a_formid);
 	}
 
+	bool IsProtected(const FormID a_formid) const {
+		return protected_forms.contains(a_formid);
+    }
+
     std::set<FormID> GetFormSet(const FormID base_formid, std::string base_editorid = "") {
         if (base_editorid.empty()) {
             base_editorid = GetEditorID(base_formid);
@@ -422,7 +426,7 @@ public:
             while (index < formset.size()) {
                 auto it = formset.begin();
                 std::advance(it, index);
-                if (!IsActive(*it)) {
+                if (!IsActive(*it) && !IsProtected(*it)) {
                     if (!_delete(base, *it)) {
                         index++;
 					}
