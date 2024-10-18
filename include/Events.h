@@ -27,14 +27,14 @@ public:
     ConversationCallbackFunctor(Manager* mngr) : M(mngr) {}
 };
 
-class OurEventSink : public RE::BSTEventSink<RE::TESEquipEvent>,
-                     public RE::BSTEventSink<RE::TESActivateEvent>,
-                     public RE::BSTEventSink<SKSE::CrosshairRefEvent>,
-                     public RE::BSTEventSink<RE::MenuOpenCloseEvent>,
-                     public RE::BSTEventSink<RE::TESFurnitureEvent>,
-                     public RE::BSTEventSink<RE::TESContainerChangedEvent>,
-                     public RE::BSTEventSink<RE::InputEvent*>,
-                     public RE::BSTEventSink<RE::TESFormDeleteEvent> {
+class OurEventSink final : public RE::BSTEventSink<RE::TESEquipEvent>,
+                           public RE::BSTEventSink<RE::TESActivateEvent>,
+                           public RE::BSTEventSink<SKSE::CrosshairRefEvent>,
+                           public RE::BSTEventSink<RE::MenuOpenCloseEvent>,
+                           public RE::BSTEventSink<RE::TESFurnitureEvent>,
+                           public RE::BSTEventSink<RE::TESContainerChangedEvent>,
+                           public RE::BSTEventSink<RE::InputEvent*>,
+                           public RE::BSTEventSink<RE::TESFormDeleteEvent> {
 
     OurEventSink() = default;
     OurEventSink(const OurEventSink&) = delete;
@@ -56,6 +56,11 @@ class OurEventSink : public RE::BSTEventSink<RE::TESEquipEvent>,
 
     RE::NiPointer<RE::TESObjectREFR> furniture;
 
+    RE::BSEventNotifyControl OnRename() const;
+    RE::BSEventNotifyControl ToggleEquipOpenContainer();
+    void ReShow();
+    bool HideMenuOnEquipHeld();
+
 public:
 
 	bool block_eventsinks = false;
@@ -65,7 +70,7 @@ public:
     Manager* M = nullptr;
     RefID external_container_refid = 0;  // set in input event
 
-    OurEventSink(Manager* mngr)
+    explicit OurEventSink(Manager* mngr)
         :  M(mngr){}
 
     static OurEventSink* GetSingleton(Manager* manager) {
@@ -79,7 +84,7 @@ public:
 
     void Reset();
 
-
+	// for opening container from inventory
     RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* event, RE::BSTEventSource<RE::TESEquipEvent>*) override;
 
     // Prompts Messagebox

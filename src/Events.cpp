@@ -1,5 +1,97 @@
 #include "Events.h"
 
+RE::BSEventNotifyControl OurEventSink::OnRename() const {
+    logger::trace("Rename menu closed.");
+    M->listen_menu_close.store(false);
+    const auto skyrimVM = RE::SkyrimVM::GetSingleton();
+    const auto vm = skyrimVM ? skyrimVM->impl : nullptr;
+    if (!vm) return RE::BSEventNotifyControl::kContinue;
+    const char* menuID = "UITextEntryMenu";
+    RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(new ConversationCallbackFunctor(M));
+    const auto args = RE::MakeFunctionArguments(std::move(menuID));
+    vm->DispatchStaticCall("UIExtensions", "GetMenuResultString", args, callback);
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+RE::BSEventNotifyControl OurEventSink::ToggleEquipOpenContainer()
+{
+    equipped = false;
+    logger::trace("Reverting equip...");
+	const auto fake_id = fake_id_;
+	SKSE::GetTaskInterface()->AddTask([fake_id]() { Manager::RevertEquip(fake_id); });
+    //Manager::RevertEquip(fake_id_);
+    logger::trace("Reverted equip.");
+    M->ActivateContainer(fake_id_, true);
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+void OurEventSink::ReShow()
+{
+    M->UnHideReal(fake_id_);
+    if (ReShowMenu == RE::ContainerMenu::MENU_NAME && !external_container_refid) {
+        logger::warn("External container refid is 0.");
+    }
+    if (ReShowMenu != RE::ContainerMenu::MENU_NAME && external_container_refid) {
+        logger::warn("ReShowMenu is not ContainerMenu.");
+    }
+    /*if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {
+        M->RevertEquip(fake_id_, external_container_refid);
+    }*/
+    if (M->_other_settings[Settings::otherstuffKeys[2]]) {
+        logger::trace("Returning to initial menu: {}", ReShowMenu);
+        if (const auto queue = RE::UIMessageQueue::GetSingleton()) {
+            if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {
+                if (const auto a_objref = RE::TESForm::LookupByID<RE::TESObjectREFR>(external_container_refid)) {
+                    const auto player_ref = RE::PlayerCharacter::GetSingleton();
+                    if (auto has_container = a_objref->HasContainer()) {
+                        if (auto container = a_objref->As<RE::TESObjectCONT>()) {
+                            a_objref->OpenContainer(0);
+                        } 
+                        else if (a_objref->GetBaseObject()->As<RE::TESObjectCONT>()) {
+                            a_objref->OpenContainer(0);
+                        } 
+                        else {
+                            logger::trace("has container but could not activate.");
+                            a_objref->OpenContainer(3);
+                        }
+                    } else a_objref->ActivateRef(player_ref, 0, a_objref->GetBaseObject(), 1, false);
+                }
+            } 
+            else queue->AddMessage(ReShowMenu, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+        }
+        else logger::warn("Failed to return to initial menu.");
+    }
+    external_container_refid = 0;
+    ReShowMenu = "";
+}
+
+bool OurEventSink::HideMenuOnEquipHeld()
+{
+    if (const auto queue = RE::UIMessageQueue::GetSingleton()) {
+        if (const auto ui = RE::UI::GetSingleton(); ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
+            ReShowMenu = RE::InventoryMenu::MENU_NAME;
+            queue->AddMessage(RE::TweenMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+        } 
+        else if (ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME)) {
+            ReShowMenu = RE::FavoritesMenu::MENU_NAME;
+        }
+        else if (ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME)) {
+            ReShowMenu = RE::ContainerMenu::MENU_NAME;
+            const auto menu = ui ? ui->GetMenu<RE::ContainerMenu>() : nullptr;
+            const RefID refHandle = menu ? menu->GetTargetRefHandle() : 0;
+            RE::TESObjectREFRPtr ref;
+            RE::LookupReferenceByHandle(refHandle, ref);
+            if (ref) external_container_refid = ref->GetFormID();
+            else logger::warn("Failed to get ref from handle.");
+            logger::trace("External container refid: {}", external_container_refid);
+        }
+        else return false;
+        queue->AddMessage(ReShowMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+        return true;
+    }
+	return false;
+}
+
 void OurEventSink::Reset() {
 	equipped = false;
 	fake_equipped_id = 0;
@@ -21,23 +113,18 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESEquipEvent* eve
     if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!event->actor->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
-	if (!event->equipped) return RE::BSEventNotifyControl::kContinue;
         
-    //if (!M->IsFakeContainer(event->baseObject)) return RE::BSEventNotifyControl::kContinue;
+    if (!M->IsFakeContainer(event->baseObject)) return RE::BSEventNotifyControl::kContinue;
 
     fake_equipped_id = event->equipped ? event->baseObject : 0;
-    //logger::trace("Fake container equipped: {}", fake_equipped_id);
 
-    if (!ReShowMenu.empty()) return RE::BSEventNotifyControl::kContinue;
+	if (!ReShowMenu.empty()) return RE::BSEventNotifyControl::kContinue; // set in HideMenuOnEquipHeld
 
-    if (const auto ui = RE::UI::GetSingleton(); !(ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) ||
-                                                   ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME))) return RE::BSEventNotifyControl::kContinue;
-
-    /*if (event->equipped) {
-        logger::trace("Item {} was equipped. equipped: {}", event->baseObject,equipped);
-    } else {
-        logger::trace("Item {} was unequipped. equipped: {}", event->baseObject, equipped);
-    }*/
+    if (const auto ui = RE::UI::GetSingleton(); !(ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || 
+                                                    ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) || 
+                                                    ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME))) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
 
     fake_id_ = event->baseObject;
     equipped = true;
@@ -68,7 +155,10 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESActivateEvent* 
         
     logger::trace("Container activated");
     M->OnActivateContainer(event->objectActivated.get(),skip_interface);
+
+#ifndef NDEBUG
     M->Print();
+#endif
 
 
     return RE::BSEventNotifyControl::kContinue;
@@ -91,7 +181,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEven
             
         // if the fake items are not in it we need to place them (this happens upon load game)
         listen_crosshair_ref = false;
-        M->HandleFakePlacement(crosshair_refr); 
+        M->HandleFakePlacement(crosshair_refr);
         listen_crosshair_ref = true;
 
         /*SKSE::GetTaskInterface()->AddTask([crosshair_refr]() { 
@@ -118,36 +208,17 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
         
     if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
-
-    //logger::trace("Menu event: {} {}", event->menuName, event->opening ? "opened" : "closed");
-        
     if (event->menuName == "CustomMenu" && !event->opening && M->listen_menu_close.load()) {
-        logger::trace("Rename menu closed.");
-        M->listen_menu_close.store(false);
-        const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-        const auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-        if (!vm) return RE::BSEventNotifyControl::kContinue;
-        const char* menuID = "UITextEntryMenu";
-        RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(new ConversationCallbackFunctor(M));
-        const auto args = RE::MakeFunctionArguments(std::move(menuID));
-        vm->DispatchStaticCall("UIExtensions", "GetMenuResultString", args, callback);
-        return RE::BSEventNotifyControl::kContinue;
+		return OnRename();
     }
-
-
     if (equipped && event->menuName.c_str() == ReShowMenu && !event->opening) {
         logger::trace("menu closed: {}", event->menuName.c_str());
-        equipped = false;
-        logger::trace("Reverting equip...");
-        Manager::RevertEquip(fake_id_);
-        logger::trace("Reverted equip.");
-        M->ActivateContainer(fake_id_, true);
-        return RE::BSEventNotifyControl::kContinue;
+		return ToggleEquipOpenContainer();
     }
-
-
     if (!M->listen_menu_close.load()) return RE::BSEventNotifyControl::kContinue;
     if (event->menuName != RE::ContainerMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
+
+
     if (event->opening) {
         listen_weight_limit = true;
     } 
@@ -157,48 +228,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
         listen_menu_close = false;
         logger::trace("listen_menuclose: {}", M->listen_menu_close.load());
         if (!ReShowMenu.empty()){
-            M->UnHideReal(fake_id_);
-            if (ReShowMenu == RE::ContainerMenu::MENU_NAME && !external_container_refid) {
-                logger::warn("External container refid is 0.");
-            }
-            if (ReShowMenu != RE::ContainerMenu::MENU_NAME && external_container_refid) {
-                logger::warn("ReShowMenu is not ContainerMenu.");
-            }
-            if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {
-                M->RevertEquip(fake_id_, external_container_refid);
-            }
-            if (M->_other_settings[Settings::otherstuffKeys[2]]) {
-                logger::trace("Returning to initial menu: {}", ReShowMenu);
-                if (const auto queue = RE::UIMessageQueue::GetSingleton()) {
-                    if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {
-                        if (const auto a_objref = RE::TESForm::LookupByID<RE::TESObjectREFR>(external_container_refid)) {
-                            const auto player_ref = RE::PlayerCharacter::GetSingleton();
-                            if (auto has_container = a_objref->HasContainer()) {
-                                logger::trace("HasContainer: {}", has_container);
-                                if (auto container = a_objref->As<RE::TESObjectCONT>()) {
-                                    a_objref->OpenContainer(0);
-                                    //Utilities::FunctionsSkyrim::OpenContainer(a_objref, 0);
-                                    //container->Activate(a_objref, player_ref, 0, container, 1);
-                                } 
-                                else if (a_objref->GetBaseObject()->As<RE::TESObjectCONT>()) {
-                                    a_objref->OpenContainer(0);
-                                    //Utilities::FunctionsSkyrim::OpenContainer(a_objref, 0);
-                                    //container_->Activate(a_objref, player_ref, 0, container_, 1);
-                                } 
-                                else {
-                                    logger::trace("has container but could not activate.");
-                                    //Utilities::FunctionsSkyrim::OpenContainer(a_objref, 3);
-                                    a_objref->OpenContainer(3);
-                                }
-                            } else a_objref->ActivateRef(player_ref, 0, a_objref->GetBaseObject(), 1, 0);
-                        }
-                    } 
-                    else queue->AddMessage(ReShowMenu, RE::UI_MESSAGE_TYPE::kShow, nullptr);
-                }
-                else logger::warn("Failed to return to initial menu.");
-            }
-            external_container_refid = 0;
-            ReShowMenu = "";
+			ReShow();
         } else {
             M->HandleContainerMenuExit();
         }
@@ -228,7 +258,6 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESFurnitureEvent*
         logger::trace("Furniture event: Enter {}", event->targetFurniture->GetName());
         furniture_entered = true;
         furniture = event->targetFurniture;
-        //M->HandleCraftingEnter();
     }
     else if (event->type == RE::TESFurnitureEvent::FurnitureEventType::kExit) {
         logger::trace("Furniture event: Exit {}", event->targetFurniture->GetName());
@@ -331,7 +360,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChange
                 }
             }
             // Barter transfer
-            else if (RE::UI::GetSingleton()->IsMenuOpen(RE::BarterMenu::MENU_NAME) && M->IsCONT(event->newContainer)) {
+            else if (RE::UI::GetSingleton()->IsMenuOpen(RE::BarterMenu::MENU_NAME) && Manager::IsCONT(event->newContainer)) {
                 logger::info("Sold container.");
                 block_droptake = true;
                 M->HandleSell(event->baseObj, event->newContainer);
@@ -352,7 +381,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChange
             }
         }
         // check if container has enough capacity
-        else if (M->IsChest(event->newContainer) && listen_weight_limit) M->InspectItemTransfer(event->newContainer);
+        else if (M->IsChest(event->newContainer) && listen_weight_limit) M->InspectItemTransfer(event->newContainer, event->baseObj);
     }
 
 
@@ -380,26 +409,10 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(RE::InputEvent* const* evns,
                         logger::trace("User event not accepted.");
                         continue;
                     }
-                    if (const auto queue = RE::UIMessageQueue::GetSingleton()) {
-                        if (const auto ui = RE::UI::GetSingleton(); ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
-                            ReShowMenu = RE::InventoryMenu::MENU_NAME;
-                            queue->AddMessage(RE::TweenMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
-                        } 
-                        else if (ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME)) ReShowMenu = RE::FavoritesMenu::MENU_NAME;
-                        else if (ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME)) {
-                            ReShowMenu = RE::ContainerMenu::MENU_NAME;
-                            const auto menu = ui ? ui->GetMenu<RE::ContainerMenu>() : nullptr;
-                            const RefID refHandle = menu ? menu->GetTargetRefHandle() : 0;
-                            RE::TESObjectREFRPtr ref;
-                            RE::LookupReferenceByHandle(refHandle, ref);
-                            if (ref) external_container_refid = ref->GetFormID();
-                            else logger::warn("Failed to get ref from handle.");
-                            logger::trace("External container refid: {}", external_container_refid);
-                        }
-                        else continue;
-                        queue->AddMessage(ReShowMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
-                        return RE::BSEventNotifyControl::kContinue;
-                    }
+					if (HideMenuOnEquipHeld()) {
+						logger::trace("Menu hidden.");
+						return RE::BSEventNotifyControl::kContinue;
+					}
                 }
             } else if (a_event->IsUp()) equipped = false;
         }
