@@ -12,7 +12,7 @@ std::vector<Source> LoadSources()
     return sources;
 }
 
-std::unordered_map<std::string, bool> LoadOtherSettings()
+void LoadOtherSettings()
 {
     using namespace Settings;
     logger::info("Loading ini settings: OtherStuff");
@@ -31,18 +31,16 @@ std::unordered_map<std::string, bool> LoadOtherSettings()
     bool val2 = ini.GetBoolValue(InISections[2], otherstuffKeys[1]);
     bool val3 = ini.GetBoolValue(InISections[2], otherstuffKeys[2]);
     bool val4 = ini.GetBoolValue(InISections[2], otherstuffKeys[3]);
-    others[otherstuffKeys[0]] = val1;
-    others[otherstuffKeys[1]] = val2;
-    others[otherstuffKeys[2]] = val3;
-    others[otherstuffKeys[3]] = val4;
+    other_settings[otherstuffKeys[0]] = val1;
+    other_settings[otherstuffKeys[1]] = val2;
+    other_settings[otherstuffKeys[2]] = val3;
+    other_settings[otherstuffKeys[3]] = val4;
 
     // log the values
     logger::info("INI_changed_msg: {}", val1);
     logger::info("RemoveCarryBoosts: {}", val2);
     logger::info("ReturnToInitialMenu: {}", val3);
     logger::info("BatchSell: {}", val4);
-
-    return others;
 }
 
 Source parseSource_(const YAML::Node& config)

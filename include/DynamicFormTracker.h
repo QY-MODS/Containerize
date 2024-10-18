@@ -220,7 +220,7 @@ class DynamicFormTracker : public DFSaveLoadData {
 
         if (!forms[{base_formid, base_editorid}].insert(new_formid).second) {
             logger::error("Failed to insert new form into forms.");
-            if (!_delete({base_formid, base_editorid}, new_formid)) {
+            if (!_delete({base_formid, base_editorid}, new_formid) && !deleted_forms.contains(new_formid)) {
                 logger::critical("Failed to delete form with ID {:x}.", new_formid);
             }
             return 0;
@@ -229,7 +229,7 @@ class DynamicFormTracker : public DFSaveLoadData {
         if (new_formid >= 0xFF3DFFFF){
             logger::critical("Dynamic FormID limit reached!!!!!!");
             block_create = true;
-            if (!_delete({base_formid, base_editorid}, new_formid)) {
+            if (!_delete({base_formid, base_editorid}, new_formid) && !deleted_forms.contains(new_formid)) {
                 logger::critical("Failed to delete form with ID {:x}.", new_formid);
             }
 			return 0;
@@ -245,26 +245,6 @@ class DynamicFormTracker : public DFSaveLoadData {
             if (customIDforms.contains(_formid) && customIDforms[_formid] == custom_id) return _formid;
 		}
         return 0;
-    }
-
-    bool IsActive(const FormID a_formid) const {
-        return active_forms.contains(a_formid);
-	}
-
-	bool IsProtected(const FormID a_formid) const {
-		return protected_forms.contains(a_formid);
-    }
-
-    std::set<FormID> GetFormSet(const FormID base_formid, std::string base_editorid = "") {
-        if (base_editorid.empty()) {
-            base_editorid = GetEditorID(base_formid);
-            if (base_editorid.empty()) {
-                return {};
-            }
-        }
-        const std::pair<FormID, std::string> key = {base_formid, base_editorid};
-        if (forms.contains(key)) return forms[key];
-        return {};
     }
 
     // makes it active
@@ -285,14 +265,18 @@ class DynamicFormTracker : public DFSaveLoadData {
 		return nullptr;
 	}
 
-    [[nodiscard]] bool _delete(const std::pair<FormID, std::string>& base, const FormID dynamic_formid) {
+    bool _delete(const std::pair<FormID, std::string>& base, const FormID dynamic_formid) {
         if (protected_forms.contains(dynamic_formid)) {
 			logger::warn("Form with ID {:x} is protected.", dynamic_formid);
 			return false;
 		}
         if (!forms.contains(base)) return false;
 
-        if (const auto newForm = RE::TESForm::LookupByID(dynamic_formid)) {
+        const auto base_form = RE::TESForm::LookupByID(base.first);
+        const auto newForm = RE::TESForm::LookupByID(dynamic_formid);
+		const auto refForm = RE::TESForm::LookupByID<RE::TESObjectREFR>(dynamic_formid);
+
+        if (newForm && underlying_check(base_form, newForm) && !refForm) {
 
             if (const auto bound_temp = newForm->As<RE::TESBoundObject>(); bound_temp) {
                 const auto player = RE::PlayerCharacter::GetSingleton();
@@ -322,18 +306,20 @@ class DynamicFormTracker : public DFSaveLoadData {
             logger::warn("Deleting form with ID: {:x}", dynamic_formid);
             delete newForm;
             deleted_forms.insert(dynamic_formid);
-            return true;
         }
 
         forms[base].erase(dynamic_formid);
         customIDforms.erase(dynamic_formid);
         active_forms.erase(dynamic_formid);
-        return false;
+        return true;
     }
 
-    [[nodiscard]] static bool _underlying_check(const RE::TESForm* underlying, const RE::TESForm* derivative) {
+    [[nodiscard]] static bool underlying_check(const RE::TESForm* underlying, const RE::TESForm* derivative) {
         if (underlying->GetFormType() != derivative->GetFormType()) {
-            logger::trace("Form types do not match.");
+			logger::trace("Form types do not match: {} vs {}, ID: {:x} vs {:x}",
+				RE::FormTypeToString(underlying->GetFormType()), RE::FormTypeToString(derivative->GetFormType()),
+				underlying->GetFormID(), derivative->GetFormID());
+			logger::trace("Underlying name: {}, Derivative name: {}", underlying->GetName(), derivative->GetName());
             return false;
         }
 
@@ -404,19 +390,25 @@ public:
 
     const char* GetType() override { return "DynamicFormTracker"; }
 
-    [[nodiscard]] bool Delete(const FormID dynamic_formid) {
-		std::lock_guard<std::mutex> lock(mutex);
-		for (auto& [base, formset] : forms) {
-			if (formset.contains(dynamic_formid)) {
-				if (!_delete(base, dynamic_formid)) {
-					logger::error("Failed to delete form with ID {:x}.", dynamic_formid);
-					return false;
-				}
-				return true;
-			}
-		}
-        return false;
+    bool IsActive(const FormID a_formid) const {
+        return active_forms.contains(a_formid);
 	}
+
+	bool IsProtected(const FormID a_formid) const {
+		return protected_forms.contains(a_formid);
+    }
+
+    std::set<FormID> GetFormSet(const FormID base_formid, std::string base_editorid = "") {
+        if (base_editorid.empty()) {
+            base_editorid = GetEditorID(base_formid);
+            if (base_editorid.empty()) {
+                return {};
+            }
+        }
+        const std::pair<FormID, std::string> key = {base_formid, base_editorid};
+        if (forms.contains(key)) return forms[key];
+        return {};
+    }
 
     void DeleteInactives() {
 		std::lock_guard<std::mutex> lock(mutex);
@@ -454,6 +446,16 @@ public:
         auto source_forms_vector = std::vector(source_forms.begin(), source_forms.end());
 
 		return source_forms_vector;
+    }
+
+    std::vector<FormID> GetDynamicForms() {
+		std::vector<FormID> dynamic_forms;
+		for (const auto& formset : forms | std::views::values) {
+			for (const auto formid : formset) {
+				dynamic_forms.push_back(formid);
+			}
+		}
+		return dynamic_forms;
     }
 
     void EditCustomID(const FormID dynamic_formid, const uint32_t custom_id) {
@@ -535,7 +537,7 @@ public:
         }
     }
 
-    void Reserve(const FormID baseID, const std::string baseEditorID,const FormID dynamic_formid) {
+    void Reserve(const FormID baseID, const std::string& baseEditorID,const FormID dynamic_formid) {
         if (protected_forms.contains(dynamic_formid)) return;
         const auto base_form = GetFormByID(
             baseID, baseEditorID);
@@ -548,7 +550,7 @@ public:
             return;
         } 
         const auto form = GetFormByID(dynamic_formid);
-        if (!_underlying_check(GetFormByID(baseID, baseEditorID), form)) {
+        if (!underlying_check(base_form, form)) {
             logger::warn("Underlying check failed for form with ID {:x}.", dynamic_formid);
             return;
         }
@@ -596,7 +598,7 @@ public:
             const DFSaveDataLHS lhs({base_pair.first, base_pair.second});
             DFSaveDataRHS rhs;
 			for (const auto dyn_formid : dyn_formset) {
-                if (!IsActive(dyn_formid)) logger::info("Inactive form {:x} found in forms set.",dyn_formid);
+                if (!IsActive(dyn_formid) && !IsProtected(dyn_formid)) logger::info("Inactive form {:x} found in forms set.",dyn_formid);
                 const bool has_customid = customIDforms.contains(dyn_formid);
                 const uint32_t customid = has_customid ? customIDforms[dyn_formid] : 0;
                 const float act_eff_elpsd = GetActiveEffectElapsed(dyn_formid);
@@ -637,7 +639,7 @@ public:
                     logger::info("Dynamic form {:x} is a refr with name {}.", dyn_formid, dyn_form->GetName());
                     continue;
                 }
-                else if (!_underlying_check(temp_form, dyn_form)) {
+                else if (!underlying_check(temp_form, dyn_form)) {
                     // bcs load callback happens after the game loads, there is a chance that the game will assign new
                     // stuff to "previously" our dynamic formid especially for stuff like dynamic food which is not
                     // serialized by the game
@@ -667,6 +669,8 @@ public:
         Print();
 #endif  // !NDEBUG
 
+        CleanseFormsets();
+
         logger::info("--------Data received (DFT) ---------");
 
 	}
@@ -677,8 +681,10 @@ public:
         CleanseFormsets();
 		customIDforms.clear();
 		active_forms.clear();
-		//deleted_forms.clear();
         protected_forms.clear();
+
+        //deleted_forms.clear();
+
 		act_effs.clear();
         block_create = false;
 	}

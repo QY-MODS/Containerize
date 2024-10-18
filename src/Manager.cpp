@@ -634,8 +634,7 @@ void Manager::Init() {
             break;
         }
         auto formtype_ = RE::FormTypeToString(form_->GetFormType());
-        std::string formtypeString(formtype_);
-        if (!Settings::AllowedFormTypes.contains(formtypeString)) {
+        if (std::string formtypeString(formtype_); !Settings::AllowedFormTypes.contains(formtypeString)) {
             init_failed = true;
             MsgBoxesNotifs::InGame::FormTypeErr(form_->formID);
             logger::error("Failed to initialize Manager due to invalid source type: {}",formtype_);
@@ -669,9 +668,8 @@ void Manager::Init() {
     if (init_failed) return InitFailed();
 
     // Load also other settings...
-    _other_settings = LoadOtherSettings();
 
-    if (_other_settings[Settings::otherstuffKeys[1]]) {
+    if (other_settings[Settings::otherstuffKeys[1]]) {
         /*empty_mgeff = RE::IFormFactory::GetConcreteFormFactoryByType<RE::EffectSetting>()->Create();
             if (!empty_mgeff) {
                 logger::critical("Failed to create empty mgeff.");
@@ -706,7 +704,7 @@ void Manager::HandleSell(const FormID fake_container, const RefID sell_refid) {
     const auto chest = RE::TESForm::LookupByID<RE::TESObjectREFR>(chest_refid);
     if (!chest) return RaiseMngrErr("Chest not found");
     RemoveItem(sell_ref, nullptr, fake_container, RE::ITEM_REMOVE_REASON::kRemove);
-    if (_other_settings[Settings::otherstuffKeys[3]]) RemoveAllItemsFromChest(chest, sell_ref);
+    if (other_settings[Settings::otherstuffKeys[3]]) RemoveAllItemsFromChest(chest, sell_ref);
     else RemoveItem(chest, sell_ref, ChestToFakeContainer[chest_refid].outerKey,
                            RE::ITEM_REMOVE_REASON::kStoreInContainer);
     logger::trace("Added real container to vendor chest");
@@ -803,7 +801,7 @@ void Manager::HandleFakePlacement(RE::TESObjectREFR* external_cont) {
 
 bool Manager::IsFakeContainer(const FormID formid) {
     if (!formid) return false;
-    for (const auto& [chest_ref, cont_form] : ChestToFakeContainer) {
+    for (const auto& cont_form : ChestToFakeContainer | std::views::values) {
         if (cont_form.innerKey == formid) return true;
     }
     return false;
@@ -847,7 +845,7 @@ void Manager::RenameContainer(const std::string& new_name) {
     }
 
     // if reopeninitialmenu is true, then PromptInterface
-    if (_other_settings[Settings::otherstuffKeys[2]]) PromptInterface();
+    if (other_settings[Settings::otherstuffKeys[2]]) PromptInterface();
 }
 
 void Manager::RevertEquip(const FormID fakeid) {
@@ -1060,7 +1058,7 @@ void Manager::qTRICK__(const SourceDataKey chest_ref, const SourceDataVal cont_r
         Inventory::FavoriteItem(RE::TESForm::LookupByID<RE::TESBoundObject>(fake_formid), to_inv);
     }
     // Remove carry weight boost if it has
-    if (_other_settings[Settings::otherstuffKeys[1]]) RemoveCarryWeightBoost(fake_formid, to_inv);
+    if (other_settings[Settings::otherstuffKeys[1]]) RemoveCarryWeightBoost(fake_formid, to_inv);
 }
 
 void Manager::Something2(const RefID chest_ref, std::vector<RefID>& ha) {
@@ -1292,7 +1290,7 @@ void Manager::MsgBoxCallback(const int result) {
         if (!fake_bound) return RaiseMngrErr("MsgBoxCallback (1): Fake bound not found");
         WorldObject::SwapObjects(current_container, fake_bound, false);
 
-        const auto rmv_carry_boost = _other_settings[Settings::otherstuffKeys[1]];
+        const auto rmv_carry_boost = other_settings[Settings::otherstuffKeys[1]];
         auto* container = current_container;
         SKSE::GetTaskInterface()->AddTask([this, chest_refid, fake_container_id, rmv_carry_boost, container]() { 
                 if (!PickUpItem(container)) return RaiseMngrErr("Take:Failed to pick up container");
@@ -1515,6 +1513,7 @@ void Manager::InspectItemTransfer(const RefID chest_refid, FormID item_id) {
                       });
 
     listen_container_change.store(false);
+
 	chest->RemoveItem(recent_item_to_remove.first, recent_item_to_remove.second, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player_ref);
     RE::DebugNotification(
             std::format("{} is fully packed! Putting {} {} back.", chest->GetDisplayFullName(),recent_item_to_remove.second,
@@ -1982,7 +1981,7 @@ void Manager::ReceiveData() {
     // user probably changed the INI. we try to retrieve the items.
     for (const auto& [chestRef_, RealFakeForm_] : unmathced_chests) {
         logger::warn("FormID {} not found in sources.", RealFakeForm_.outerKey);
-        if (_other_settings[Settings::otherstuffKeys[0]]) {
+        if (other_settings[Settings::otherstuffKeys[0]]) {
             MsgBoxesNotifs::InGame::ProblemWithContainer(std::to_string(RealFakeForm_.outerKey));
         }
         logger::info("Deregistering chest");
@@ -2065,6 +2064,13 @@ void Manager::ReceiveData() {
         }
     }
 
+    for (const auto& source : sources) {
+        for (auto dyn_formid : DFT->GetFormSet(source.formid, source.editorid)) {
+			const auto editorid = source.editorid.empty() ? GetEditorID(source.formid) : source.editorid;
+            DFT->Reserve(source.formid,editorid ,dyn_formid);
+			logger::trace("Reserving formid {:x} for source formid {:x} and editorid {}", dyn_formid, source.formid, source.editorid);
+        }
+    }
     // need to get rid of the dynamic forms which are unused
     logger::trace("Deleting unused fake forms from bank.");
     listen_container_change.store(false);
