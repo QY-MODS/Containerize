@@ -2043,13 +2043,14 @@ void Manager::ReceiveData() {
         if (!(*it)) {
             logger::error("Entry is null. Fave-equip failed.");
             continue;
-        } else if (!(*it)->object) {
+        } 
+        if (!(*it)->object) {
             logger::error("Object is null. Fave-equip failed.");
             continue;
         }
         if (auto fake_formid = (*it)->object->GetFormID(); IsFakeContainer(fake_formid)) {
-            const bool is_equipped_x = chest_equipped_fav[GetFakeContainerChest(fake_formid)].first;
-            const bool is_faved_x = chest_equipped_fav[GetFakeContainerChest((*it)->object->GetFormID())].second;
+			const auto fakecontainerchestid = GetFakeContainerChest(fake_formid);
+            const auto [is_equipped_x,is_faved_x ] = chest_equipped_fav[fakecontainerchestid];
             if (is_equipped_x) {
                 logger::trace("Equipping fake container with formid {}", fake_formid);
                 Inventory::EquipItem((*it)->object);
@@ -2061,6 +2062,11 @@ void Manager::ReceiveData() {
                 Inventory::FavoriteItem((*it)->object,player_ref);
                 //inventory_changes->SetFavorite((*it), (*it)->extraLists->front());
             }
+			if (const auto src = GetContainerSource(ChestToFakeContainer[fakecontainerchestid].outerKey)) {
+				if (const auto fakecontainer_chest = RE::TESForm::LookupByID<RE::TESObjectREFR>(fakecontainerchestid)) {
+                    UpdateFakeWV((*it)->object,fakecontainer_chest,src->cloud_storage);
+				}
+			}
         }
     }
 
