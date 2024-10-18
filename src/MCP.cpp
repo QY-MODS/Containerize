@@ -126,6 +126,7 @@ void UI::Refresh()
 
     last_generated = std::format("{} (in-game hours)", RE::Calendar::GetSingleton()->GetHoursPassed());
     n_sources = M->GetSources().size();
+	dynamic_forms.clear();
     const auto DFT = DynamicFormTracker::GetSingleton();
 	for (const auto& df : DFT->GetDynamicForms()) {
 		if (const auto form = RE::TESForm::LookupByID(df); form) {

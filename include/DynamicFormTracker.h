@@ -31,7 +31,10 @@ class DynamicFormTracker : public DFSaveLoadData {
         for (auto it = forms.begin(); it != forms.end();++it) {
             auto& [base, formset] = *it;
             for (auto it2 = formset.begin(); it2 != formset.end();) {
-                if (!GetFormByID(*it2)) {
+                const auto base_form = RE::TESForm::LookupByID(base.first);
+                const auto newForm = RE::TESForm::LookupByID(*it2);
+		        const auto refForm = RE::TESForm::LookupByID<RE::TESObjectREFR>(*it2);
+                if (!newForm || !underlying_check(base_form, newForm) || refForm) {
                     logger::trace("Form with ID {:x} does not exist. Removing from formset.", *it2);
                     customIDforms.erase(*it2);
                     active_forms.erase(*it2);
