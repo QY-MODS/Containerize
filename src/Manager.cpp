@@ -1991,7 +1991,7 @@ void Manager::ReceiveData() {
         RemoveAllItemsFromChest(chest, player_ref);
         // also remove the associated fake item from player or unowned chest
         if (const auto fake_id = RealFakeForm_.innerKey) {
-            RemoveItem(player_ref, nullptr, fake_id, RE::ITEM_REMOVE_REASON::kRemove);
+			//RemoveItem(player_ref, nullptr, fake_id, RE::ITEM_REMOVE_REASON::kRemove); // causes crash
             //RemoveItem(unownedChestOG, nullptr, fake_id, RE::ITEM_REMOVE_REASON::kRemove); // < v0.7.1
         }
         // make sure no item is left in the chest
