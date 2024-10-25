@@ -1504,7 +1504,7 @@ void Manager::InspectItemTransfer(const RefID chest_refid, FormID item_id) {
 		    excess_weight -= item_weight_;
 			temp_count_++;
         }
-		items_to_remove.emplace_back(item_obj, temp_count_);
+		if (temp_count_>0) items_to_remove.emplace_back(item_obj, temp_count_);
 	}
 
     std::ranges::sort(items_to_remove,
@@ -1514,10 +1514,12 @@ void Manager::InspectItemTransfer(const RefID chest_refid, FormID item_id) {
 
     listen_container_change.store(false);
 
-	chest->RemoveItem(recent_item_to_remove.first, recent_item_to_remove.second, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player_ref);
-    RE::DebugNotification(
-            std::format("{} is fully packed! Putting {} {} back.", chest->GetDisplayFullName(),recent_item_to_remove.second,
-                        recent_item_to_remove.first->GetName()).c_str());
+	if (recent_item_to_remove.second > 0) {
+	    chest->RemoveItem(recent_item_to_remove.first, recent_item_to_remove.second, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player_ref);
+        RE::DebugNotification(
+                std::format("{} is fully packed! Putting {} {} back.", chest->GetDisplayFullName(),recent_item_to_remove.second,
+                            recent_item_to_remove.first->GetName()).c_str());
+	}
 	for (const auto& [item_obj, count] : items_to_remove) {
 		chest->RemoveItem(item_obj, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player_ref);
 		RE::DebugNotification(
