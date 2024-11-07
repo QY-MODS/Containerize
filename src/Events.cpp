@@ -349,6 +349,9 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChange
                     swapped = true;
                     M->Print();
                 }
+                if (swapped && obj_manipu_installed && other_settings[Settings::otherstuffKeys[5]]) {
+                    WorldObject::StartDraggingObject(ref);
+                }
                 // consumed
                 if (!swapped && event->baseObj==fake_equipped_id) {
                     logger::trace("new container: {}", event->newContainer);

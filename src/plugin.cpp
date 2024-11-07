@@ -9,7 +9,7 @@ void OnMessage(SKSE::MessagingInterface::Message* message) {
         // Start
         const auto sources = LoadSources();
         if (sources.empty()) {
-            logger::critical("Failed to load INI sources.");
+            logger::critical("Failed to load sources.");
             return;
         }
         M = Manager::GetSingleton(sources);

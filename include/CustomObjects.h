@@ -17,7 +17,7 @@ struct FormIDX {
     bool favorited;    // is favorited
     std::string name;  //(new) name
     FormIDX() : id(0), equipped(false), favorited(false), name("") {}
-    FormIDX(FormID id, bool value1, bool value2, std::string value3);
+    FormIDX(FormID id, bool value1, bool value2, const std::string& value3);
 };
 
 struct FormRefIDX {
@@ -43,18 +43,21 @@ struct Source {
 
     using SourceData = std::map<RefID, RefID>;  // Chest-Container Reference ID Pairs
 
-    bool cloud_storage;
+    float weight_ratio;
     std::map<FormID,Count> initial_items;
     float capacity;
     std::uint32_t formid;
     std::string editorid;
     SourceData data;
 
-    Source(std::uint32_t id, std::string id_str, float capacity, bool cs);
+    Source(std::uint32_t id, std::string id_str, float capacity, float cs);
 
     [[nodiscard]] std::string_view GetName() const;
 
     [[nodiscard]] RE::TESBoundObject* GetBoundObject() const;
 
-    void AddInitialItem(FormID form_id, Count count);;
+    void AddInitialItem(FormID form_id, Count count);
+
+    [[nodiscard]] bool IsHealthy() const;
+
 };

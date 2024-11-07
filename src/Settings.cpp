@@ -5,10 +5,40 @@ std::vector<Source> LoadSources()
     std::vector<Source> sources;
     const auto IniSources = LoadINISources();
     logger::trace("IniSources size: {}", IniSources.size());
-    sources.insert(sources.end(), IniSources.begin(), IniSources.end());
+    //sources.insert(sources.end(), IniSources.begin(), IniSources.end());
     const auto YamlSources = LoadYAMLSources();
     logger::trace("YamlSources size: {}", YamlSources.size());
-    sources.insert(sources.end(), YamlSources.begin(), YamlSources.end());
+    //sources.insert(sources.end(), YamlSources.begin(), YamlSources.end());
+	std::set<FormID> formids;
+	for (const auto& source : YamlSources) {
+		if (!source.IsHealthy()) {
+			logger::error("Source is not healthy. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			Settings::problems_in_YAML_sources |= true;
+			continue;
+		}
+		if (formids.contains(source.formid)) {
+			logger::warn("Duplicate formid found. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			Settings::duplicate_sources |= true;
+			continue;
+		}
+		formids.insert(source.formid);
+		sources.push_back(source);
+	}
+
+	for (const auto& source : IniSources) {
+		if (!source.IsHealthy()) {
+			logger::error("Source is not healthy. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+            Settings::problems_in_INI_sources |= true;
+			continue;
+		}
+		if (formids.contains(source.formid)) {
+			logger::warn("Duplicate formid found. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			Settings::duplicate_sources |= true;
+			continue;
+		}
+		formids.insert(source.formid);
+		sources.push_back(source);
+	}
     return sources;
 }
 
@@ -25,22 +55,13 @@ void LoadOtherSettings()
     ini.SetUnicode();
     ini.LoadFile(path);
 
-
     // other stuff section
-    bool val1 = ini.GetBoolValue(InISections[2], otherstuffKeys[0]);
-    bool val2 = ini.GetBoolValue(InISections[2], otherstuffKeys[1]);
-    bool val3 = ini.GetBoolValue(InISections[2], otherstuffKeys[2]);
-    bool val4 = ini.GetBoolValue(InISections[2], otherstuffKeys[3]);
-    other_settings[otherstuffKeys[0]] = val1;
-    other_settings[otherstuffKeys[1]] = val2;
-    other_settings[otherstuffKeys[2]] = val3;
-    other_settings[otherstuffKeys[3]] = val4;
-
-    // log the values
-    logger::info("INI_changed_msg: {}", val1);
-    logger::info("RemoveCarryBoosts: {}", val2);
-    logger::info("ReturnToInitialMenu: {}", val3);
-    logger::info("BatchSell: {}", val4);
+	for (size_t i = 0; i < otherstuffSize; ++i) {
+		const auto key = otherstuffKeys[i];
+        const bool val = ini.GetBoolValue(InISections[2], key);
+        other_settings[key] = val;
+        logger::info("{}: {}", key, val);
+	}
 }
 
 Source parseSource_(const YAML::Node& config)
@@ -50,12 +71,21 @@ Source parseSource_(const YAML::Node& config)
     auto temp_formeditorid = config["FormEditorID"] && !config["FormEditorID"].IsNull() ? config["FormEditorID"].as<std::string>() : "";
     FormID temp_formid = temp_formeditorid.empty() ? 0 : GetFormEditorIDFromString(temp_formeditorid);
     const auto temp_weight_limit = config["weight_limit"] && !config["weight_limit"].IsNull() ? config["weight_limit"].as<float>() : 0.f;
-    const auto cloud_storage = config["cloud_storage"] && !config["cloud_storage"].IsNull() ? config["cloud_storage"].as<bool>() : cloud_storage_enabled;
+
+    float cloud_storage = cloud_storage_enabled ? 1.f : 0.f;
+    if (config["cloud_storage"] && !config["cloud_storage"].IsNull()) {
+        try {cloud_storage = std::clamp(config["cloud_storage"].as<float>(), 0.f, 1.f);}
+		catch (const std::exception&) {
+            try {cloud_storage = config["cloud_storage"].as<bool>() ? 1.f : 0.f;}
+			catch (const std::exception&){}
+		}
+    }
+
     logger::trace("FormEditorID: {}, FormID: {}, WeightLimit: {}, CloudStorage: {}", temp_formeditorid, temp_formid, temp_weight_limit, cloud_storage);
     Source source(temp_formid, "", temp_weight_limit, cloud_storage);
 
     if (!config["initial_items"] || config["initial_items"].size() == 0) {
-        logger::info("initial_items are empty.");
+        logger::trace("initial_items are empty.");
         return source;
     }
     for (const auto& itemNode : config["initial_items"]) {
@@ -65,7 +95,7 @@ Source parseSource_(const YAML::Node& config)
 
         temp_formid = temp_formeditorid.empty() ? 0 : GetFormEditorIDFromString(temp_formeditorid);
         if (!temp_formid && !temp_formeditorid.empty()) {
-            logger::error("Formid could not be obtained for {}", temp_formid, temp_formeditorid);
+            logger::error("Formid could not be obtained for {} / {}", temp_formid, temp_formeditorid);
             continue;
         }
         if (!itemNode["count"] || itemNode["count"].IsNull()) {
@@ -102,12 +132,18 @@ std::vector<Source> LoadYAMLSources()
 
             for (const auto& node : config["containers"]) {
                 // we have list of owners at each node or a scalar owner
-                const auto source = parseSource_(node);
-                if (source.formid == 0 && source.editorid.empty()) {
-                    logger::error("LoadYAMLSources: File {} has invalid source: {}, {}", filename, source.formid, source.editorid);
-					continue;
+                try {
+                    const auto source = parseSource_(node);
+                    if (source.formid == 0 && source.editorid.empty()) {
+                        logger::error("LoadYAMLSources: File {} has invalid source: {}, {}", filename, source.formid, source.editorid);
+					    continue;
+				    }
+                    sources.push_back(source);
+                }
+				catch (const std::exception& e) {
+					logger::error("Error parsing source: {}", e.what());
+					Settings::problems_in_YAML_sources |= true;
 				}
-                sources.push_back(source);
             }
         }
     }
@@ -187,6 +223,7 @@ std::vector<Source> LoadINISources()
         const char* val2 = ini.GetValue(InISections[1], it->pItem);
         if (!val1 || !val2 || !std::strlen(val1) || !std::strlen(val2)) {
             logger::warn("Source {} is missing a value. Skipping.", it->pItem);
+			problems_in_INI_sources |= true;
             continue;
         }
         logger::info("Source {} has a value of {}", it->pItem, val1);
