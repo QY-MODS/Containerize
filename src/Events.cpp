@@ -215,23 +215,19 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
         logger::trace("menu closed: {}", event->menuName.c_str());
 		return ToggleEquipOpenContainer();
     }
+
     if (!M->listen_menu_close.load()) return RE::BSEventNotifyControl::kContinue;
+
     if (event->menuName != RE::ContainerMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
 
-
-    if (event->opening) {
-        listen_weight_limit = true;
-    } 
+    if (event->opening) listen_weight_limit = true;
     else {
         logger::trace("Our Container menu closed.");
         listen_weight_limit = false;
         listen_menu_close = false;
         logger::trace("listen_menuclose: {}", M->listen_menu_close.load());
-        if (!ReShowMenu.empty()){
-			ReShow();
-        } else {
-            M->HandleContainerMenuExit();
-        }
+        if (!ReShowMenu.empty()) ReShow();
+        else M->HandleContainerMenuExit();
     }
     return RE::BSEventNotifyControl::kContinue;
 }

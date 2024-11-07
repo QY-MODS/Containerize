@@ -270,6 +270,7 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float 
         logger::trace("VALUE BEFORE {}", x_0);
         auto temp_entry = chest_inventory.find(real_container);
         const auto extracost = Inventory::EntryHasXData(temp_entry->second.second.get()) ? xData::GetXDataCostOverride(temp_entry->second.second->extraLists->front()) : 0;
+        logger::trace("extracost {}", extracost);
         x_0 = target_value - extracost;
         logger::trace("VALUE AFTER {}", x_0);
     }
@@ -286,12 +287,12 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float 
     const int f_0 = Inventory::GetItemValue(fake_bound, player_ref->GetInventory());
     int f_search = f_0;
     logger::trace("Value in inventory: {}, Target value: {}", f_0, target_value);
-    if (f_0 <= target_value) return;
+    //if (f_0 <= target_value) return;
 
     logger::trace("Player has the fake form, try to correct the value");
     // do binary search to find the correct value up to a tolerance
     constexpr float tolerance = 0.01f; // 1%
-    const float tolerance_val = std::max(5.0f, std::floor(tolerance * target_value) + 1);  // at least 5 
+    const float tolerance_val = std::max(2.0f, std::floor(tolerance * target_value) + 1);  // at least 2
     constexpr int max_iter = 1000;
     int curr_iter = max_iter;
 
@@ -304,7 +305,7 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float 
 
     while (std::abs(f_search - target_value) > tolerance_val && curr_iter > 0) {
         FunctionsSkyrim::FormTraits<T>::SetValue(fake_form, x_search);
-        f_search = Inventory::GetItemValue(fake_bound, player_ref->GetInventory());
+		f_search = Inventory::GetItemValue(fake_bound, player_ref->GetInventory());
 
         logger::trace("x_search: {}, f_search: {}", x_search, f_search);
 

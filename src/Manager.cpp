@@ -75,14 +75,13 @@ void Manager::ActivateChest(RE::TESObjectREFR* chest, const char* chest_name) {
     Activate(chest);
 }
 
-void Manager::ActivateContainer(const FormID fakeid, bool hide_real) {
+void Manager::ActivateContainer(const FormID fakeid, const bool hide_real) {
     logger::trace("ActivateContainer 2 args");
     const auto chest_refid = GetFakeContainerChest(fakeid);
     const auto chest = RE::TESForm::LookupByID<RE::TESObjectREFR>(chest_refid);
     const auto real_container_formid = FakeToRealContainer(fakeid)->GetFormID();
     const auto real_container_name = RE::TESForm::LookupByID<RE::TESBoundObject>(real_container_formid)->GetName();
     if (hide_real) {
-        // if the fake container was equipped, then we need to unequip it vice versa
         logger::trace("Hiding real container {} which is in chest {}", real_container_formid, chest_refid);
         if (const auto fake_form = RE::TESForm::LookupByID(fakeid); fake_form->formFlags != 13) fake_form->formFlags = 13;
         const auto real_refhandle =
@@ -168,7 +167,7 @@ void Manager::HandleCraftingExit() {
                 DeRegisterChest(chest_refid);
                 continue;
             }
-            else if (!UpdateExtrasInInventory(player_ref, fake_formid, chest, src.formid)) {
+            if (!UpdateExtrasInInventory(player_ref, fake_formid, chest, src.formid)) {
                 logger::error("Failed to update extras in player's inventory.");
                 return;
             }
@@ -214,7 +213,6 @@ void Manager::HandleConsume(const FormID fake_formid) {
     RemoveItem(chest_ref, nullptr, real_obj->GetFormID(), RE::ITEM_REMOVE_REASON::kRemove);
     for (const auto temp_formids = DeRegisterChest(chest_refid); auto& temp_formid : temp_formids){
         if (const auto temp_bound = RE::TESForm::LookupByID<RE::TESBoundObject>(temp_formid)){
-            //Utilities::FunctionsSkyrim::Menu::SendInventoryUpdateMessage(player_ref, temp_bound);
             RE::SendUIMessage::SendInventoryUpdateMessage(player_ref, temp_bound);
         }
     }

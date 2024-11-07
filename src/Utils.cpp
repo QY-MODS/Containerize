@@ -522,7 +522,7 @@ std::int32_t Inventory::GetItemCount(RE::TESBoundObject* item,
 
 std::int32_t Inventory::GetItemValue(RE::TESBoundObject* item, const RE::TESObjectREFR::InventoryItemMap& inventory) {
     if (!HasItemEntry(item, inventory, true)) return 0;
-    return inventory.find(item)->second.first;
+    return inventory.find(item)->second.second->GetValue();
 }
 
 bool Inventory::IsQuestItem(const FormID formid, RE::TESObjectREFR* inv_owner)
