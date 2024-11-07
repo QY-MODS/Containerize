@@ -205,12 +205,19 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEven
 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent* event,
     RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
+
         
     if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
-    if (event->menuName == "CustomMenu" && !event->opening && M->listen_menu_close.load()) {
+    if (const auto ui = RE::UI::GetSingleton(); event->menuName == "CustomMenu" && 
+        !ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::BarterMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) &&
+        !event->opening && M->listen_menu_close.load()) {
 		return OnRename();
     }
+
     if (equipped && event->menuName.c_str() == ReShowMenu && !event->opening) {
         logger::trace("menu closed: {}", event->menuName.c_str());
 		return ToggleEquipOpenContainer();
