@@ -4,7 +4,7 @@ bool FormRefID::operator<(const FormRefID& other) const {
     return outerKey < other.outerKey || (outerKey == other.outerKey && innerKey < other.innerKey);
 }
 
-FormIDX::FormIDX(FormID id, bool value1, bool value2, std::string value3): id(id), equipped(value1), favorited(value2), name(value3) {}
+FormIDX::FormIDX(const FormID id, const bool value1, const bool value2, const std::string& value3): id(id), equipped(value1), favorited(value2), name(value3) {}
 
 bool FormRefIDX::operator<(const FormRefIDX& other) const {
     // Here, you can access the boolean values via outerKey
@@ -16,20 +16,26 @@ bool FormFormID::operator<(const FormFormID& other) const {
     return outerKey < other.outerKey || (outerKey == other.outerKey && innerKey < other.innerKey);
 }
 
-Source::Source(const std::uint32_t id, const std::string id_str, const float capacity, const bool cs): cloud_storage(cs), capacity(capacity), formid(id), editorid(id_str) {
+Source::Source(const std::uint32_t id, const std::string id_str, const float capacity, const float cs): capacity(capacity), formid(id), editorid(id_str) {
     logger::trace("Creating source with formid: {}, editorid: {}, capacity: {}, cloud storage: {}", formid, editorid, capacity, cs);
     if (!formid) {
         logger::trace("Formid is not found. Attempting to find formid for editorid {}.", editorid);
-        auto form = RE::TESForm::LookupByEditorID(editorid);
 
-        if (form) formid = form->GetFormID();
+        if (const auto form = RE::TESForm::LookupByEditorID(editorid)) formid = form->GetFormID();
         else logger::info("Could not find formid for editorid {}", editorid);
     }
+	else if (editorid.empty()) {
+		logger::trace("Editorid is not found. Attempting to find editorid for formid {}.", formid);
+		if (const auto form = GetFormByID(formid)) editorid = clib_util::editorID::get_editorID(form);
+		else logger::info("Could not find editorid for formid {}", formid);
+	}
+    if (cs > 0.f) weight_ratio = std::clamp(1.f - cs, 0.f, 1.f);
+	else weight_ratio = 1.f;
 }
 
 inline std::string_view Source::GetName() const {
     logger::trace("Getting name for formid: {}", formid);
-    if (auto* form = GetFormByID(formid, editorid)) return form->GetName();
+    if (const auto* form = GetFormByID(formid, editorid)) return form->GetName();
     return "";
 }
 
@@ -38,4 +44,18 @@ RE::TESBoundObject* Source::GetBoundObject() const {return GetFormByID<RE::TESBo
 void Source::AddInitialItem(const FormID form_id, const Count count) {
     logger::trace("Adding initial item with formid: {} and count: {}", form_id, count);
     initial_items[form_id] = count;
+}
+
+bool Source::IsHealthy() const
+{
+	if (formid == 0) return false;
+	if (editorid.empty()) return false;
+	if (const auto* form = GetFormByID(formid, editorid); !form) return false;
+	if (capacity < 0.f) return false;
+	if (weight_ratio < 0.f || weight_ratio > 1.f) return false;
+	for (const auto& [formid_, count] : initial_items) {
+		if (count <= 0) return false;
+		if (!GetFormByID(formid_)) return false;
+	}
+    return true;
 }

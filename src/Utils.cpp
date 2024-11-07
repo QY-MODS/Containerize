@@ -80,11 +80,8 @@ bool isValidHexWithLength7or8(const char* input)
 }
 
 std::string GetEditorID(const FormID a_formid) {
-    if (const auto form = RE::TESForm::LookupByID(a_formid)) {
-        return clib_util::editorID::get_editorID(form);
-    } else {
-        return "";
-    }
+    if (const auto form = RE::TESForm::LookupByID(a_formid)) return clib_util::editorID::get_editorID(form);
+    return "";
 }
 
 FormID GetFormEditorIDFromString(const std::string formEditorId)
@@ -525,7 +522,7 @@ std::int32_t Inventory::GetItemCount(RE::TESBoundObject* item,
 
 std::int32_t Inventory::GetItemValue(RE::TESBoundObject* item, const RE::TESObjectREFR::InventoryItemMap& inventory) {
     if (!HasItemEntry(item, inventory, true)) return 0;
-    return inventory.find(item)->second.first;
+    return inventory.find(item)->second.second->GetValue();
 }
 
 bool Inventory::IsQuestItem(const FormID formid, RE::TESObjectREFR* inv_owner)
@@ -555,6 +552,7 @@ int Inventory::GetValueInContainer(RE::TESObjectREFR* container) {
     }
     int total_value = 0;
     for (auto inventory = container->GetInventory(); auto& [fst, snd] : inventory) {
+		if (snd.first <= 0) continue;
         auto gold_value = fst->GetGoldValue();
         logger::trace("Gold value: {}", gold_value);
         total_value += gold_value * snd.first;

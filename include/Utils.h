@@ -8,9 +8,12 @@
 const auto mod_name = static_cast<std::string>(SKSE::PluginDeclaration::GetSingleton()->GetName());
 constexpr auto po3path = "Data/SKSE/Plugins/po3_Tweaks.dll";
 constexpr auto po3_UoTpath = "Data/SKSE/Plugins/po3_UseOrTake.dll";
+constexpr auto obj_manipu_path = "Data/SKSE/Plugins/ObjectManipulationOverhaul.dll";
 inline bool IsPo3Installed() { return std::filesystem::exists(po3path); };
+inline bool IsObjManipuInstalled() { return std::filesystem::exists(obj_manipu_path); };
 inline bool IsPo3_UoTInstalled() { return std::filesystem::exists(po3_UoTpath); };
 const auto po3_use_or_take = IsPo3_UoTInstalled();
+const auto obj_manipu_installed = IsObjManipuInstalled();
 
 
 const auto no_src_msgbox = std::format(
@@ -274,39 +277,17 @@ namespace Inventory {
 
 
 namespace WorldObject {
-    /*int16_t GetObjectCount(RE::TESObjectREFR* ref);
-
-    void SetObjectCount(RE::TESObjectREFR* ref, Count count);*/
 
     RE::TESObjectREFR* DropObjectIntoTheWorld(RE::TESBoundObject* obj, Count count=1, bool player_owned=true);
 
     void SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_to, bool apply_havok=true);
 
-	//float GetDistanceFromPlayer(const RE::TESObjectREFR* ref);
-
- //   [[nodiscard]] bool PlayerPickUpObject(RE::TESObjectREFR* item, Count count, unsigned int max_try = 3);
-
- //   RefID TryToGetRefIDFromHandle(const RE::ObjectRefHandle& handle);
-
-	//RE::TESObjectREFR* TryToGetRefFromHandle(RE::ObjectRefHandle& handle, unsigned int max_try = 1);
-
-	//RE::TESObjectREFR* TryToGetRefInCell(FormID baseid, Count count, float radius = 180);
-
-    /*template <typename T>
-    void ForEachRefInCell(T func) {
-        const auto player_cell = RE::PlayerCharacter::GetSingleton()->GetParentCell();
-        if (!player_cell) {
-			logger::error("Player cell is null.");
-			return;
-		}
-        auto& runtimeData = player_cell->GetRuntimeData();
-        RE::BSSpinLockGuard locker(runtimeData.spinLock);
-        for (auto& ref : runtimeData.references) {
-			if (!ref) continue;
-			func(ref.get());
-		}
-    }*/
-
+    inline void StartDraggingObject(RE::TESObjectREFR* ref) {
+        using func_t = void(*)(RE::TESObjectREFR*);
+        static auto ObjectManipulationOverhaul = GetModuleHandle(L"ObjectManipulationOverhaul");
+        func_t func = reinterpret_cast<func_t>(GetProcAddress(ObjectManipulationOverhaul, "StartDraggingObject"));
+        return func(ref);
+    }
 };
 
 namespace xData {

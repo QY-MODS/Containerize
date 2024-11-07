@@ -21,7 +21,6 @@ class DynamicFormTracker : public DFSaveLoadData {
 
 
     std::mutex mutex;
-    const unsigned int form_limit = 10000;
     bool block_create = false;
 
     //std::map<FormID,float> act_effs;
@@ -390,6 +389,8 @@ public:
         static DynamicFormTracker singleton;
         return &singleton;
     }
+
+    const unsigned int form_limit = 10000;
 
     const char* GetType() override { return "DynamicFormTracker"; }
 

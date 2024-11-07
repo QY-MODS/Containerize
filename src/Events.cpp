@@ -205,33 +205,36 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEven
 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent* event,
     RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
+
         
     if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
-    if (event->menuName == "CustomMenu" && !event->opening && M->listen_menu_close.load()) {
+    if (const auto ui = RE::UI::GetSingleton(); event->menuName == "CustomMenu" && 
+        !ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::BarterMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) &&
+        !event->opening && M->listen_menu_close.load()) {
 		return OnRename();
     }
+
     if (equipped && event->menuName.c_str() == ReShowMenu && !event->opening) {
         logger::trace("menu closed: {}", event->menuName.c_str());
 		return ToggleEquipOpenContainer();
     }
+
     if (!M->listen_menu_close.load()) return RE::BSEventNotifyControl::kContinue;
+
     if (event->menuName != RE::ContainerMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
 
-
-    if (event->opening) {
-        listen_weight_limit = true;
-    } 
+    if (event->opening) listen_weight_limit = true;
     else {
         logger::trace("Our Container menu closed.");
         listen_weight_limit = false;
         listen_menu_close = false;
         logger::trace("listen_menuclose: {}", M->listen_menu_close.load());
-        if (!ReShowMenu.empty()){
-			ReShow();
-        } else {
-            M->HandleContainerMenuExit();
-        }
+        if (!ReShowMenu.empty()) ReShow();
+        else M->HandleContainerMenuExit();
     }
     return RE::BSEventNotifyControl::kContinue;
 }
@@ -348,6 +351,9 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChange
                     logger::trace("Swapped fake container.");
                     swapped = true;
                     M->Print();
+                }
+                if (swapped && obj_manipu_installed && other_settings[Settings::otherstuffKeys[5]]) {
+                    WorldObject::StartDraggingObject(ref);
                 }
                 // consumed
                 if (!swapped && event->baseObj==fake_equipped_id) {
