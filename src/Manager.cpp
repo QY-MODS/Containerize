@@ -509,6 +509,9 @@ bool Manager::HasItemPlusCleanUp(RE::TESBoundObject* item, RE::TESObjectREFR* it
 }
 
 void Manager::Uninstall() {
+
+	if (isUninstalled.load()) return;
+
     bool uninstall_successful = true;
 
     logger::info("Uninstalling...");

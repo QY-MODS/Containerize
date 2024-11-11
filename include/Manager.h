@@ -96,7 +96,6 @@ class Manager : public SaveLoadData {
     std::shared_mutex sharedMutex_;
     std::vector<Source> sources;
 
-    void Uninstall();
 
     void RaiseMngrErr(const std::string& err_msg_ = "Error");
 
@@ -231,6 +230,9 @@ public:
     void ReceiveData();
 
 	const std::vector<Source>& GetSources() const { return sources; }
+
+    void Uninstall();
+
 };
 
 
