@@ -12,12 +12,12 @@ std::vector<Source> LoadSources()
 	std::set<FormID> formids;
 	for (const auto& source : YamlSources) {
 		if (!source.IsHealthy()) {
-			logger::error("Source is not healthy. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			logger::error("Source is not healthy. Skipping. formid {:x} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
 			Settings::problems_in_YAML_sources |= true;
 			continue;
 		}
 		if (formids.contains(source.formid)) {
-			logger::warn("Duplicate formid found. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			logger::warn("Duplicate formid found. Skipping. formid {:x} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
 			Settings::duplicate_sources |= true;
 			continue;
 		}
@@ -27,12 +27,12 @@ std::vector<Source> LoadSources()
 
 	for (const auto& source : IniSources) {
 		if (!source.IsHealthy()) {
-			logger::error("Source is not healthy. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			logger::error("Source is not healthy. Skipping. formid {:x} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
             Settings::problems_in_INI_sources |= true;
 			continue;
 		}
 		if (formids.contains(source.formid)) {
-			logger::warn("Duplicate formid found. Skipping. formid {} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
+			logger::warn("Duplicate formid found. Skipping. formid {:x} / editorid {} / capacity {}", source.formid, source.editorid, source.capacity);
 			Settings::duplicate_sources |= true;
 			continue;
 		}
@@ -68,8 +68,6 @@ Source parseSource_(const YAML::Node& config)
 {
 	using namespace Settings;
 
-    auto temp_formeditorid = config["FormEditorID"] && !config["FormEditorID"].IsNull() ? config["FormEditorID"].as<std::string>() : "";
-    FormID temp_formid = temp_formeditorid.empty() ? 0 : GetFormEditorIDFromString(temp_formeditorid);
     const auto temp_weight_limit = config["weight_limit"] && !config["weight_limit"].IsNull() ? config["weight_limit"].as<float>() : 0.f;
 
     float cloud_storage = cloud_storage_enabled ? 1.f : 0.f;
@@ -81,6 +79,13 @@ Source parseSource_(const YAML::Node& config)
 		}
     }
 
+    auto temp_formeditorid = config["FormEditorID"] && !config["FormEditorID"].IsNull() ? config["FormEditorID"].as<std::string>() : "";
+    FormID temp_formid = temp_formeditorid.empty() ? 0 : GetFormEditorIDFromString(temp_formeditorid);
+	if (!temp_formid) {
+		logger::error("Formid could not be obtained for form-/editorid: {}", temp_formeditorid);
+        Source source(temp_formid, "", temp_weight_limit, cloud_storage);
+		return source;
+	}
     logger::trace("FormEditorID: {}, FormID: {}, WeightLimit: {}, CloudStorage: {}", temp_formeditorid, temp_formid, temp_weight_limit, cloud_storage);
     Source source(temp_formid, "", temp_weight_limit, cloud_storage);
 
@@ -94,8 +99,8 @@ Source parseSource_(const YAML::Node& config)
                                            : "";
 
         temp_formid = temp_formeditorid.empty() ? 0 : GetFormEditorIDFromString(temp_formeditorid);
-        if (!temp_formid && !temp_formeditorid.empty()) {
-            logger::error("Formid could not be obtained for {} / {}", temp_formid, temp_formeditorid);
+        if (!temp_formid) {
+            logger::error("Formid could not be obtained for form-/editorid: {}", temp_formeditorid);
             continue;
         }
         if (!itemNode["count"] || itemNode["count"].IsNull()) {
@@ -134,7 +139,7 @@ std::vector<Source> LoadYAMLSources()
                 // we have list of owners at each node or a scalar owner
                 try {
                     const auto source = parseSource_(node);
-                    if (source.formid == 0 && source.editorid.empty()) {
+                    if (!source.IsHealthy()) {
                         logger::error("LoadYAMLSources: File {} has invalid source: {}, {}", filename, source.formid, source.editorid);
 					    continue;
 				    }
@@ -157,16 +162,6 @@ std::vector<Source> LoadINISources()
     logger::info("Loading ini settings: Sources");
 
     std::vector<Source> sources;
-
-    // Check if powerofthree's Tweaks is installed
-    if (IsPo3Installed()) {
-        logger::info("powerofthree's Tweaks is installed. Enabling EditorID support.");
-        po3installed = true;
-    } else {
-        logger::info("powerofthree's Tweaks is not installed. Disabling EditorID support.");
-        po3installed = false;
-    }
-
 
     CSimpleIniA ini;
     CSimpleIniA::TNamesDepend source_names;

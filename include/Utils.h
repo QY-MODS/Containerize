@@ -5,11 +5,14 @@
 #include <unordered_set>
 
 
+bool GetDllVersion(const std::wstring& dllPath, DWORD& major, DWORD& minor, DWORD& build, DWORD& revision);
+std::wstring s2ws(const std::string& str);
+
 const auto mod_name = static_cast<std::string>(SKSE::PluginDeclaration::GetSingleton()->GetName());
 constexpr auto po3path = "Data/SKSE/Plugins/po3_Tweaks.dll";
 constexpr auto po3_UoTpath = "Data/SKSE/Plugins/po3_UseOrTake.dll";
 constexpr auto obj_manipu_path = "Data/SKSE/Plugins/ObjectManipulationOverhaul.dll";
-inline bool IsPo3Installed() { return std::filesystem::exists(po3path); };
+bool IsPo3Installed();
 inline bool IsObjManipuInstalled() { return std::filesystem::exists(obj_manipu_path); };
 inline bool IsPo3_UoTInstalled() { return std::filesystem::exists(po3_UoTpath); };
 const auto po3_use_or_take = IsPo3_UoTInstalled();
@@ -21,7 +24,7 @@ const auto no_src_msgbox = std::format(
     mod_name);
 
 const auto po3_err_msgbox = std::format(
-    "{}: You have given an invalid FormID. If you are using Editor IDs, you must have powerofthree's Tweaks "
+    "{}: You must have the latest version of powerofthree's Tweaks "
     "installed. See mod page for further instructions.",
     mod_name);
 const auto general_err_msgbox = std::format("{}: Something went wrong. Please contact the mod author.", mod_name);

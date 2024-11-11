@@ -1,7 +1,66 @@
 #include <Utils.h>
-
 #include <numbers>
 
+
+bool GetDllVersion(const std::wstring& dllPath, DWORD& major, DWORD& minor, DWORD& build, DWORD& revision)
+{
+    DWORD handle = 0;
+    const DWORD versionInfoSize = GetFileVersionInfoSize(dllPath.c_str(), &handle);
+    if (versionInfoSize == 0) {
+		//logger::error("Failed to get version info size for {}", dllPath);
+        return false;
+    }
+
+    // Allocate a buffer for version info data
+    std::vector<char> versionInfo(versionInfoSize);
+    if (!GetFileVersionInfo(dllPath.c_str(), handle, versionInfoSize, versionInfo.data())) {
+		//logger::error("Failed to get version info for {}", dllPath);
+        return false;
+    }
+
+    // Query the version value
+    VS_FIXEDFILEINFO* fileInfo = nullptr;
+    UINT fileInfoSize = 0;
+    if (!VerQueryValue(versionInfo.data(), L"\\", reinterpret_cast<LPVOID*>(&fileInfo), &fileInfoSize)) {
+		//logger::error("Failed to query version value for {}", dllPath);
+        return false;
+    }
+
+    // Extract version numbers
+    major = (fileInfo->dwFileVersionMS >> 16) & 0xFFFF;
+    minor = (fileInfo->dwFileVersionMS) & 0xFFFF;
+    build = (fileInfo->dwFileVersionLS >> 16) & 0xFFFF;
+    revision = (fileInfo->dwFileVersionLS) & 0xFFFF;
+
+    return true;
+}
+
+std::wstring s2ws(const std::string& str)
+{
+    const int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], static_cast<int>(str.size()), nullptr, 0);
+    std::wstring wstrTo( size_needed, 0 );
+    MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()), wstrTo.data(), size_needed);
+    return wstrTo;
+}
+
+bool IsPo3Installed()
+{
+    if (!std::filesystem::exists(po3path)) {
+		logger::error("Po3's Tweaks is not installed.");
+        return false;
+    }
+	// check version of the dll. its major version should be larger equal to 1 and minor version should be larger equal to 12.
+	DWORD major, minor, build, revision;
+    if (!GetDllVersion(s2ws(std::string(po3path)), major, minor, build, revision)) {
+		logger::error("Failed to get version info for {}", po3path);
+        return false;
+    }
+    if (major < 1 || (major == 1 && minor < 9)) {
+		logger::error("Po3's Tweaks version is lower than the required version. Major: {}, Minor: {}", major, minor);
+        return false;
+    }
+	return true;
+}
 
 void SetupLog()
 {
@@ -86,24 +145,21 @@ std::string GetEditorID(const FormID a_formid) {
 
 FormID GetFormEditorIDFromString(const std::string formEditorId)
 {
+    if (formEditorId.empty()) return 0;
     if (isValidHexWithLength7or8(formEditorId.c_str())) {
         int form_id_;
         std::stringstream ss;
         ss << std::hex << formEditorId;
         ss >> form_id_;
-        if (const auto temp_form = GetFormByID(form_id_, ""))
-            return temp_form->GetFormID();
-        else {
-            logger::error("Formid is null for editorid {}", formEditorId);
-            return 0;
-        }
+        if (const auto temp_form = GetFormByID(form_id_)) return temp_form->GetFormID();
+        logger::warn("Formid is null for (valid hex) form-/editorid {}", formEditorId);
+        //return 0;
     }
-    if (formEditorId.empty()) return 0;
-    if (!IsPo3Installed()) {
-        logger::error("Po3 is not installed.");
-        MsgBoxesNotifs::Windows::Po3ErrMsg();
-        return 0;
-    }
+    //if (!IsPo3Installed()) {
+    //    logger::error("Po3 is not installed.");
+    //    MsgBoxesNotifs::Windows::Po3ErrMsg();
+    //    return 0;
+    //}
     if (const auto temp_form = GetFormByID(0, formEditorId)) return temp_form->GetFormID();
     //logger::info("Formid is null for editorid {}", formEditorId);
     return 0;
