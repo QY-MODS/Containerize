@@ -246,8 +246,7 @@ namespace Inventory {
                              bool nonzero_entry_check = false);
 
     inline bool HasItem(RE::TESBoundObject* item, RE::TESObjectREFR* inventory_owner) {
-        if (HasItemEntry(item, inventory_owner->GetInventory(), true)) return true;
-        return false;
+        return HasItemEntry(item, inventory_owner->GetInventory(), true);
     };
 
     std::int32_t GetItemCount(RE::TESBoundObject* item, const RE::TESObjectREFR::InventoryItemMap& inventory);
@@ -385,7 +384,7 @@ namespace xData {
             default:
                 logger::warn("ExtraData type not found");
                 break;
-        };
+        }
     }
 
     [[nodiscard]] bool UpdateExtras(RE::ExtraDataList* copy_from, RE::ExtraDataList* copy_to);

@@ -113,7 +113,7 @@ std::vector<std::string> ReadLogFile()
     return logLines;
 }
 
-std::string DecodeTypeCode(std::uint32_t typeCode)
+std::string DecodeTypeCode(const std::uint32_t typeCode)
 {
 	char buf[4];
     buf[3] = char(typeCode);
@@ -203,7 +203,7 @@ bool String::includesWord(const std::string& input, const std::vector<std::strin
         lowerStr = trim(lowerStr);
         lowerStr = " " + lowerStr + " ";  // Add spaces to the beginning and end of the string
         std::ranges::transform(lowerStr, lowerStr.begin(),
-                               [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                               [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         // logger::trace("lowerInput: {} lowerStr: {}", lowerInput, lowerStr);
 
@@ -565,8 +565,8 @@ bool Inventory::EntryHasXData(const RE::InventoryEntryData* entry) {
 
 bool Inventory::HasItemEntry(RE::TESBoundObject* item, const RE::TESObjectREFR::InventoryItemMap& inventory,
                              const bool nonzero_entry_check) {
-    if (const auto has_entry = inventory.contains(item); !has_entry) return false;
-    else return nonzero_entry_check ? has_entry && inventory.at(item).first > 0 : has_entry;
+    if (inventory.contains(item)) return nonzero_entry_check ? inventory.at(item).first > 0 : true;
+	return false;
 }
 
 std::int32_t Inventory::GetItemCount(RE::TESBoundObject* item,
@@ -744,7 +744,7 @@ bool Inventory::IsEquipped(RE::TESBoundObject* item)
     return false;
 }
 
-RE::TESObjectREFR* WorldObject::DropObjectIntoTheWorld(RE::TESBoundObject* obj, Count count, bool player_owned)
+RE::TESObjectREFR* WorldObject::DropObjectIntoTheWorld(RE::TESBoundObject* obj, const Count count, const bool player_owned)
 {
     const auto player_ch = RE::PlayerCharacter::GetSingleton();
 
@@ -774,7 +774,7 @@ RE::TESObjectREFR* WorldObject::DropObjectIntoTheWorld(RE::TESBoundObject* obj, 
     return newPropRef;
 }
 
-void WorldObject::SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_to, bool apply_havok)
+void WorldObject::SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_to, const bool apply_havok)
 {
     logger::trace("SwapObjects");
     if (!a_from) {
@@ -829,7 +829,7 @@ void WorldObject::SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_t
     //});
 }
 
-void Math::LinAlg::R3::rotateX(RE::NiPoint3& v, float angle)
+void Math::LinAlg::R3::rotateX(RE::NiPoint3& v, const float angle)
 {
     const float y = v.y * cos(angle) - v.z * sin(angle);
     const float z = v.y * sin(angle) + v.z * cos(angle);
@@ -837,7 +837,7 @@ void Math::LinAlg::R3::rotateX(RE::NiPoint3& v, float angle)
     v.z = z;
 }
 
-void Math::LinAlg::R3::rotateY(RE::NiPoint3& v, float angle)
+void Math::LinAlg::R3::rotateY(RE::NiPoint3& v, const float angle)
 {
     const float x = v.x * cos(angle) + v.z * sin(angle);
     const float z = -v.x * sin(angle) + v.z * cos(angle);
@@ -845,7 +845,7 @@ void Math::LinAlg::R3::rotateY(RE::NiPoint3& v, float angle)
     v.z = z;
 }
 
-void Math::LinAlg::R3::rotateZ(RE::NiPoint3& v, float angle)
+void Math::LinAlg::R3::rotateZ(RE::NiPoint3& v, const float angle)
 {
     const float x = v.x * cos(angle) - v.y * sin(angle);
     const float y = v.x * sin(angle) + v.y * cos(angle);
@@ -853,7 +853,7 @@ void Math::LinAlg::R3::rotateZ(RE::NiPoint3& v, float angle)
     v.y = y;
 }
 
-void Math::LinAlg::R3::rotate(RE::NiPoint3& v, float angleX, float angleY, float angleZ)
+void Math::LinAlg::R3::rotate(RE::NiPoint3& v, const float angleX, const float angleY, const float angleZ)
 {
     rotateX(v, angleX);
 	rotateY(v, angleY);
