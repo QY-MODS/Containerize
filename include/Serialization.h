@@ -37,7 +37,7 @@ public:
         Locker locker(m_Lock);
         // if the plugin version is less than 0.7 need to handle differently
         // if (SKSE::PluginInfo::version)
-        if (auto idx = m_Data.find(formId) != m_Data.end()) {
+        if (auto idx = m_Data.contains(formId)) {
             return m_Data[formId];
         }
         return missing;
@@ -51,9 +51,9 @@ public:
     virtual const char* GetType() = 0;
 
     virtual bool Save(SKSE::SerializationInterface*, std::uint32_t,
-                      std::uint32_t) {return false;};
-    virtual bool Save(SKSE::SerializationInterface*) {return false;};
-    virtual bool Load(SKSE::SerializationInterface*, const bool) {return false;};
+                      std::uint32_t) {return false;}
+    virtual bool Save(SKSE::SerializationInterface*) {return false;}
+    virtual bool Load(SKSE::SerializationInterface*, const bool) {return false;}
 
     void Clear() {
         Locker locker(m_Lock);
@@ -128,7 +128,7 @@ public:
         m_Data.clear();
 
 
-        for (auto i = 0; i < recordDataSize; i++) {
+        for (size_t i = 0; i < recordDataSize; i++) {
             SaveDataLHS formId;
             SaveDataRHS value;
             logger::trace("Loading data from serialization interface.");
@@ -237,7 +237,7 @@ public:
         m_Data.clear();
 
         logger::trace("Loading data from serialization interface.");
-        for (auto i = 0; i < recordDataSize; i++) {
+        for (size_t i = 0; i < recordDataSize; i++) {
             DFSaveDataRHS rhs;
 
             std::uint32_t formid = 0;
@@ -263,7 +263,7 @@ public:
             logger::trace("ReadRecordData: {}", serializationInterface->ReadRecordData(rhsSize));
             logger::trace("rhsSize: {}", rhsSize);
 
-            for (auto j = 0; j < rhsSize; j++) {
+            for (size_t j = 0; j < rhsSize; j++) {
                 DFSaveData rhs_;
                 logger::trace("ReadRecordData: {}", serializationInterface->ReadRecordData(rhs_));
                 logger::trace(

@@ -23,6 +23,8 @@ void __stdcall UI::RenderStatus()
     ImGui::Text("Status: ");
 	ImGui::SameLine();
     ImGui::TextColored(color_operational, std::format("Sources ({})",n_sources).c_str());
+	ImGui::SameLine();
+	if (ImGui::Button("Uninstall")) M->Uninstall();
 
 	if (Settings::problems_in_YAML_sources) {
 		ImGui::TextColored(color_not_operational, "Problems in YAML files. Check log for more info.");

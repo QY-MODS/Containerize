@@ -43,8 +43,8 @@ void OurEventSink::ReShow()
             if (external_container_refid && ReShowMenu == RE::ContainerMenu::MENU_NAME) {
                 if (const auto a_objref = RE::TESForm::LookupByID<RE::TESObjectREFR>(external_container_refid)) {
                     const auto player_ref = RE::PlayerCharacter::GetSingleton();
-                    if (auto has_container = a_objref->HasContainer()) {
-                        if (auto container = a_objref->As<RE::TESObjectCONT>()) {
+                    if (a_objref->HasContainer()) {
+                        if (a_objref->As<RE::TESObjectCONT>()) {
                             a_objref->OpenContainer(0);
                         } 
                         else if (a_objref->GetBaseObject()->As<RE::TESObjectCONT>()) {

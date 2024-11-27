@@ -1,7 +1,66 @@
 #include <Utils.h>
-
 #include <numbers>
 
+
+bool GetDllVersion(const std::wstring& dllPath, DWORD& major, DWORD& minor, DWORD& build, DWORD& revision)
+{
+    DWORD handle = 0;
+    const DWORD versionInfoSize = GetFileVersionInfoSize(dllPath.c_str(), &handle);
+    if (versionInfoSize == 0) {
+		//logger::error("Failed to get version info size for {}", dllPath);
+        return false;
+    }
+
+    // Allocate a buffer for version info data
+    std::vector<char> versionInfo(versionInfoSize);
+    if (!GetFileVersionInfo(dllPath.c_str(), handle, versionInfoSize, versionInfo.data())) {
+		//logger::error("Failed to get version info for {}", dllPath);
+        return false;
+    }
+
+    // Query the version value
+    VS_FIXEDFILEINFO* fileInfo = nullptr;
+    UINT fileInfoSize = 0;
+    if (!VerQueryValue(versionInfo.data(), L"\\", reinterpret_cast<LPVOID*>(&fileInfo), &fileInfoSize)) {
+		//logger::error("Failed to query version value for {}", dllPath);
+        return false;
+    }
+
+    // Extract version numbers
+    major = (fileInfo->dwFileVersionMS >> 16) & 0xFFFF;
+    minor = (fileInfo->dwFileVersionMS) & 0xFFFF;
+    build = (fileInfo->dwFileVersionLS >> 16) & 0xFFFF;
+    revision = (fileInfo->dwFileVersionLS) & 0xFFFF;
+
+    return true;
+}
+
+std::wstring s2ws(const std::string& str)
+{
+    const int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], static_cast<int>(str.size()), nullptr, 0);
+    std::wstring wstrTo( size_needed, 0 );
+    MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()), wstrTo.data(), size_needed);
+    return wstrTo;
+}
+
+bool IsPo3Installed()
+{
+    if (!std::filesystem::exists(po3path)) {
+		logger::error("Po3's Tweaks is not installed.");
+        return false;
+    }
+	// check version of the dll. its major version should be larger equal to 1 and minor version should be larger equal to 12.
+	DWORD major, minor, build, revision;
+    if (!GetDllVersion(s2ws(std::string(po3path)), major, minor, build, revision)) {
+		logger::error("Failed to get version info for {}", po3path);
+        return false;
+    }
+    if (major < 1 || (major == 1 && minor < 9)) {
+		logger::error("Po3's Tweaks version is lower than the required version. Major: {}, Minor: {}", major, minor);
+        return false;
+    }
+	return true;
+}
 
 void SetupLog()
 {
@@ -54,7 +113,7 @@ std::vector<std::string> ReadLogFile()
     return logLines;
 }
 
-std::string DecodeTypeCode(std::uint32_t typeCode)
+std::string DecodeTypeCode(const std::uint32_t typeCode)
 {
 	char buf[4];
     buf[3] = char(typeCode);
@@ -86,24 +145,21 @@ std::string GetEditorID(const FormID a_formid) {
 
 FormID GetFormEditorIDFromString(const std::string formEditorId)
 {
+    if (formEditorId.empty()) return 0;
     if (isValidHexWithLength7or8(formEditorId.c_str())) {
         int form_id_;
         std::stringstream ss;
         ss << std::hex << formEditorId;
         ss >> form_id_;
-        if (const auto temp_form = GetFormByID(form_id_, ""))
-            return temp_form->GetFormID();
-        else {
-            logger::error("Formid is null for editorid {}", formEditorId);
-            return 0;
-        }
+        if (const auto temp_form = GetFormByID(form_id_)) return temp_form->GetFormID();
+        logger::warn("Formid is null for (valid hex) form-/editorid {}", formEditorId);
+        //return 0;
     }
-    if (formEditorId.empty()) return 0;
-    if (!IsPo3Installed()) {
-        logger::error("Po3 is not installed.");
-        MsgBoxesNotifs::Windows::Po3ErrMsg();
-        return 0;
-    }
+    //if (!IsPo3Installed()) {
+    //    logger::error("Po3 is not installed.");
+    //    MsgBoxesNotifs::Windows::Po3ErrMsg();
+    //    return 0;
+    //}
     if (const auto temp_form = GetFormByID(0, formEditorId)) return temp_form->GetFormID();
     //logger::info("Formid is null for editorid {}", formEditorId);
     return 0;
@@ -147,7 +203,7 @@ bool String::includesWord(const std::string& input, const std::vector<std::strin
         lowerStr = trim(lowerStr);
         lowerStr = " " + lowerStr + " ";  // Add spaces to the beginning and end of the string
         std::ranges::transform(lowerStr, lowerStr.begin(),
-                               [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                               [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         // logger::trace("lowerInput: {} lowerStr: {}", lowerInput, lowerStr);
 
@@ -509,8 +565,8 @@ bool Inventory::EntryHasXData(const RE::InventoryEntryData* entry) {
 
 bool Inventory::HasItemEntry(RE::TESBoundObject* item, const RE::TESObjectREFR::InventoryItemMap& inventory,
                              const bool nonzero_entry_check) {
-    if (const auto has_entry = inventory.contains(item); !has_entry) return false;
-    else return nonzero_entry_check ? has_entry && inventory.at(item).first > 0 : has_entry;
+    if (inventory.contains(item)) return nonzero_entry_check ? inventory.at(item).first > 0 : true;
+	return false;
 }
 
 std::int32_t Inventory::GetItemCount(RE::TESBoundObject* item,
@@ -688,7 +744,7 @@ bool Inventory::IsEquipped(RE::TESBoundObject* item)
     return false;
 }
 
-RE::TESObjectREFR* WorldObject::DropObjectIntoTheWorld(RE::TESBoundObject* obj, Count count, bool player_owned)
+RE::TESObjectREFR* WorldObject::DropObjectIntoTheWorld(RE::TESBoundObject* obj, const Count count, const bool player_owned)
 {
     const auto player_ch = RE::PlayerCharacter::GetSingleton();
 
@@ -718,7 +774,7 @@ RE::TESObjectREFR* WorldObject::DropObjectIntoTheWorld(RE::TESBoundObject* obj, 
     return newPropRef;
 }
 
-void WorldObject::SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_to, bool apply_havok)
+void WorldObject::SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_to, const bool apply_havok)
 {
     logger::trace("SwapObjects");
     if (!a_from) {
@@ -773,7 +829,7 @@ void WorldObject::SwapObjects(RE::TESObjectREFR* a_from, RE::TESBoundObject* a_t
     //});
 }
 
-void Math::LinAlg::R3::rotateX(RE::NiPoint3& v, float angle)
+void Math::LinAlg::R3::rotateX(RE::NiPoint3& v, const float angle)
 {
     const float y = v.y * cos(angle) - v.z * sin(angle);
     const float z = v.y * sin(angle) + v.z * cos(angle);
@@ -781,7 +837,7 @@ void Math::LinAlg::R3::rotateX(RE::NiPoint3& v, float angle)
     v.z = z;
 }
 
-void Math::LinAlg::R3::rotateY(RE::NiPoint3& v, float angle)
+void Math::LinAlg::R3::rotateY(RE::NiPoint3& v, const float angle)
 {
     const float x = v.x * cos(angle) + v.z * sin(angle);
     const float z = -v.x * sin(angle) + v.z * cos(angle);
@@ -789,7 +845,7 @@ void Math::LinAlg::R3::rotateY(RE::NiPoint3& v, float angle)
     v.z = z;
 }
 
-void Math::LinAlg::R3::rotateZ(RE::NiPoint3& v, float angle)
+void Math::LinAlg::R3::rotateZ(RE::NiPoint3& v, const float angle)
 {
     const float x = v.x * cos(angle) - v.y * sin(angle);
     const float y = v.x * sin(angle) + v.y * cos(angle);
@@ -797,7 +853,7 @@ void Math::LinAlg::R3::rotateZ(RE::NiPoint3& v, float angle)
     v.y = y;
 }
 
-void Math::LinAlg::R3::rotate(RE::NiPoint3& v, float angleX, float angleY, float angleZ)
+void Math::LinAlg::R3::rotate(RE::NiPoint3& v, const float angleX, const float angleY, const float angleZ)
 {
     rotateX(v, angleX);
 	rotateY(v, angleY);

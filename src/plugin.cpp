@@ -139,8 +139,15 @@ void InitializeSerialization() {
 
 SKSEPluginLoad(const SKSE::LoadInterface *skse) {
     SetupLog();
-    LoadOtherSettings();
     SKSE::Init(skse);
+    if (!IsPo3Installed()) {
+		logger::critical("Latest version of Po3's Tweaks is not installed.");
+		MsgBoxesNotifs::Windows::Po3ErrMsg();
+		Settings::po3installed = false;
+		return false;
+    }
+	Settings::po3installed = true;
+    LoadOtherSettings();
     InitializeSerialization();
     SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
     return true;

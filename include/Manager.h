@@ -96,7 +96,6 @@ class Manager : public SaveLoadData {
     std::shared_mutex sharedMutex_;
     std::vector<Source> sources;
 
-    void Uninstall();
 
     void RaiseMngrErr(const std::string& err_msg_ = "Error");
 
@@ -231,6 +230,9 @@ public:
     void ReceiveData();
 
 	const std::vector<Source>& GetSources() const { return sources; }
+
+    void Uninstall();
+
 };
 
 
@@ -333,7 +335,6 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float 
 template <typename T>
 FormID Manager::CreateFakeContainer(T* realcontainer, const RefID connected_chest, RE::ExtraDataList*) {
     logger::trace("CreateFakeContainer");
-    T* new_form = nullptr;
     //new_form = realcontainer->CreateDuplicateForm(true, (void*)new_form)->As<T>();
     const auto real_container_formid = realcontainer->GetFormID();
     const auto real_container_editorid = clib_util::editorID::get_editorID(realcontainer);
@@ -342,7 +343,7 @@ FormID Manager::CreateFakeContainer(T* realcontainer, const RefID connected_ches
         return 0;
     }
     const auto new_form_id = DynamicFormTracker::GetSingleton()->FetchCreate<T>(real_container_formid, real_container_editorid, connected_chest);
-    new_form = RE::TESForm::LookupByID<T>(new_form_id);
+    T* new_form = RE::TESForm::LookupByID<T>(new_form_id);
 
     if (!new_form) {
         RaiseMngrErr("Failed to create new form.");
