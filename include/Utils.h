@@ -3,6 +3,7 @@
 #include "ClibUtil/editorID.hpp"
 #include "SimpleIni.h"
 #include <unordered_set>
+#include <ranges>
 
 
 bool GetDllVersion(const std::wstring& dllPath, DWORD& major, DWORD& minor, DWORD& build, DWORD& revision);
@@ -332,7 +333,7 @@ namespace xData {
     template <typename T>
     void CopyExtraData(T* from, T* to){
         if (!from || !to) return;
-        switch (T->EXTRADATATYPE) {
+        switch (T::EXTRADATATYPE) {
             case RE::ExtraDataType::kEnchantment:
                 CopyEnchantment(from, to);
                 break;
