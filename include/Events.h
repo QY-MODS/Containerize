@@ -44,7 +44,7 @@ class OurEventSink final : public RE::BSTEventSink<RE::TESEquipEvent>,
 
 
 	std::atomic<bool> block_droptake = false;
-	bool listen_menu_close = true;
+	std::atomic<bool> listen_menu_close = true;
 
 
     FormID fake_equipped_id = 0;
@@ -63,10 +63,10 @@ class OurEventSink final : public RE::BSTEventSink<RE::TESEquipEvent>,
 
 public:
 
-	bool block_eventsinks = false;
-	bool listen_crosshair_ref = true;
-	bool furniture_entered = false;
-	bool listen_weight_limit = false;
+	std::atomic<bool> block_eventsinks = false;
+	std::atomic<bool> listen_crosshair_ref = true;
+	std::atomic<bool> furniture_entered = false;
+	std::atomic<bool> listen_weight_limit = false;
     Manager* M = nullptr;
     RefID external_container_refid = 0;  // set in input event
 

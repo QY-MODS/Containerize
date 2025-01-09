@@ -119,7 +119,7 @@ class Manager : public SaveLoadData {
 
     // for the cases when real container is in its chest and fake container is in some other inventory (player,unownedchest,external_container)
     // DOES NOT UPDATE THE SOURCE DATA and CHESTTOFAKECONTAINER !!!
-    void qTRICK__(SourceDataKey chest_ref, SourceDataVal cont_ref,bool fake_nonexistent = false);
+    void qTRICK_(SourceDataKey chest_ref, SourceDataVal cont_ref,bool fake_nonexistent = false);
 
     // places fakes according to loaded data to player or unowned chests
     void Something2(const RefID chest_ref, std::vector<RefID>& ha);
@@ -137,7 +137,7 @@ class Manager : public SaveLoadData {
     void PromptInterface();
 
     template <typename T>
-    static void Rename(const std::string new_name, T item) {
+    static void Rename(const std::string& new_name, T item) {
         logger::trace("Rename");
         if (!item) logger::warn("Item not found");
         else item->fullName = new_name;
@@ -238,10 +238,6 @@ public:
 
 
 
-
-
-
-
 template <typename T>
 void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float weight_ratio) {
     logger::trace("UpdateFakeWV");
@@ -260,9 +256,11 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float 
     if (weight_ratio > 0.f) FunctionsSkyrim::FormTraits<T>::SetWeight(fake_form, weight_ratio*chest_linked->GetWeightInContainer() + (1-weight_ratio)*real_container->GetWeight());
 
     auto chest_inventory = chest_linked->GetInventory();
+#ifndef NDEBUG
     for (auto& [key, value] : chest_inventory) {
         logger::trace("Item: {}, Count: {}", key->GetName(), value.first);
     }
+#endif
 
     // get the ench costoverride of fake in player inventory
 

@@ -98,19 +98,18 @@ void OurEventSink::Reset() {
 	fake_id_ = 0;
 	ReShowMenu = "";
 	furniture = nullptr;
-	furniture_entered = false;
-	listen_crosshair_ref = true;
-	listen_weight_limit = false;
-	block_droptake = false;
-	block_eventsinks = false;
+	furniture_entered.store(false);
+	listen_crosshair_ref.store(true);
+	listen_weight_limit.store(false);
+	block_droptake.store(false);
+	block_eventsinks.store(false);
 	external_container_refid = 0;
-	block_eventsinks = false;
 }
 
 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESEquipEvent* event,
     RE::BSTEventSource<RE::TESEquipEvent>*) {
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!event->actor->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
         
@@ -135,13 +134,13 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESEquipEvent* eve
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESActivateEvent* event,
     RE::BSTEventSource<RE::TESActivateEvent>*) {
         
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
+    if (!M->listen_activate.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!event->objectActivated) return RE::BSEventNotifyControl::kContinue;
     if (!event->actionRef->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
     if (!event->objectActivated->IsActivationBlocked()) return RE::BSEventNotifyControl::kContinue;
     if (event->objectActivated == RE::PlayerCharacter::GetSingleton()->GetGrabbedRef()) return RE::BSEventNotifyControl::kContinue;
-    if (!M->listen_activate.load()) return RE::BSEventNotifyControl::kContinue;
     if (!M->IsRealContainer(event->objectActivated.get())) return RE::BSEventNotifyControl::kContinue;
 
     bool skip_interface = false;
@@ -167,7 +166,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESActivateEvent* 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const SKSE::CrosshairRefEvent* event,
     RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
 
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event->crosshairRef) return RE::BSEventNotifyControl::kContinue;
     if (event->crosshairRef->extraList.GetCount()>1) return RE::BSEventNotifyControl::kContinue;
     if (!listen_crosshair_ref) return RE::BSEventNotifyControl::kContinue;
@@ -207,7 +206,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
     RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
 
         
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (const auto ui = RE::UI::GetSingleton(); event->menuName == "CustomMenu" && 
         !ui->IsMenuOpen(RE::ContainerMenu::MENU_NAME) &&
@@ -229,10 +228,10 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
 
     if (event->opening) listen_weight_limit = true;
     else {
-        logger::trace("Our Container menu closed.");
-        listen_weight_limit = false;
-        listen_menu_close = false;
-        logger::trace("listen_menuclose: {}", M->listen_menu_close.load());
+        //logger::trace("Our Container menu closed.");
+        listen_weight_limit.store(false);
+        listen_menu_close.store(false);
+        //logger::trace("listen_menuclose: {}", M->listen_menu_close.load());
         if (!ReShowMenu.empty()) ReShow();
         else M->HandleContainerMenuExit();
     }
@@ -242,7 +241,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::MenuOpenCloseEvent
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESFurnitureEvent* event,
     RE::BSTEventSource<RE::TESFurnitureEvent>*) {
         
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!event->actor->IsPlayerRef()) return RE::BSEventNotifyControl::kContinue;
     if (furniture_entered && event->type == RE::TESFurnitureEvent::FurnitureEventType::kEnter)
@@ -281,7 +280,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESFurnitureEvent*
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChangedEvent* event,
                                                     RE::BSTEventSource<RE::TESContainerChangedEvent>*) {
         
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
     if (!M->listen_container_change.load()) return RE::BSEventNotifyControl::kContinue;
     if (!event) return RE::BSEventNotifyControl::kContinue;
     if (!listen_crosshair_ref) return RE::BSEventNotifyControl::kContinue;
@@ -396,7 +395,7 @@ RE::BSEventNotifyControl OurEventSink::ProcessEvent(const RE::TESContainerChange
 }
 
 RE::BSEventNotifyControl OurEventSink::ProcessEvent(RE::InputEvent* const* evns, RE::BSTEventSource<RE::InputEvent*>*) {
-    if (block_eventsinks) return RE::BSEventNotifyControl::kContinue;
+    if (block_eventsinks.load()) return RE::BSEventNotifyControl::kContinue;
     if (!*evns) return RE::BSEventNotifyControl::kContinue;
     if (!equipped) return RE::BSEventNotifyControl::kContinue; // this also ensures that we have only the menus we want
 
