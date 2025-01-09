@@ -1,5 +1,6 @@
 #pragma once
 #include "DynamicFormTracker.h"
+#include <algorithm>
 #include <shared_mutex>
 
 
@@ -276,7 +277,7 @@ void Manager::UpdateFakeWV(T* fake_form, RE::TESObjectREFR* chest_linked, float 
         x_0 = target_value - extracost;
         logger::trace("VALUE AFTER {}", x_0);
     }
-    if (x_0 < 0) x_0 = 0;
+    x_0 = std::max(x_0, 0);
 
     logger::trace("Setting weight and value for fake form");
     FunctionsSkyrim::FormTraits<T>::SetValue(fake_form, x_0);

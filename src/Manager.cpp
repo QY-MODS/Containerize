@@ -297,11 +297,12 @@ std::vector<RefID> Manager::ConnectedChests(const RefID chestRef) {
     for (const auto& [chest_ref, cont_ref] : ChestToFakeContainer) {
         const auto src = GetContainerSource(cont_ref.outerKey);
         if (!src) {
-            logger::error("Source not found for formid: {}", cont_ref.outerKey);
+            logger::error("Source not found for formid: {:x}", cont_ref.outerKey);
             continue;
         }
-        if (chestRef != chest_ref && src->data[chest_ref] == chestRef)
+        if (chestRef != chest_ref && src->data[chest_ref] == chestRef) {
             connected_chests.push_back(chest_ref);
+        }
     }
     return connected_chests;
 }
@@ -433,7 +434,7 @@ std::vector<FormID> Manager::RemoveAllItemsFromChest(RE::TESObjectREFR* chest, R
         for (const auto& [key, value] : src.data) {
             if (value == chest_refid && key != value) {
                 logger::info(
-                    "Fake container with formid {} found in chest during RemoveAllItemsFromChest. Redirecting...",
+                    "Fake container with formid {:x} found in chest during RemoveAllItemsFromChest. Redirecting...",
                     ChestToFakeContainer[key].innerKey);
                 if (move2ref->IsPlayerRef()) src.data[key] = key;
                 // must be sell_ref
@@ -821,6 +822,10 @@ bool Manager::IsRealContainer(const RE::TESObjectREFR* ref) const {
 void Manager::RenameContainer(const std::string& new_name) {
 
     logger::trace("RenameContainer");
+    if (!current_container) {
+		logger::trace("Current container is null");
+		return;
+    }
     const auto chest = GetRealContainerChest(current_container);
     if (!chest) return RaiseMngrErr("Chest not found");
     const auto fake_formid = ChestToFakeContainer[chest->GetFormID()].innerKey;
@@ -1105,7 +1110,7 @@ void Manager::FakePlacement(const RefID saved_ref, const RefID chest_ref, RE::TE
     RE::TESBoundObject* fake_bound = RE::TESForm::LookupByID<RE::TESBoundObject>(fake_formid);
 
     if (fake_bound && fake_bound->IsDeleted()) {
-        logger::warn("Fake container with formid {} is deleted. Removing it from inventory/external_container...",
+        logger::warn("Fake container with formid {:x} is deleted. Removing it from inventory/external_container...",
                      fake_formid);
         RemoveItem(cont_of_fakecont, nullptr, fake_formid, RE::ITEM_REMOVE_REASON::kRemove);
     }
@@ -1123,7 +1128,7 @@ void Manager::FakePlacement(const RefID saved_ref, const RefID chest_ref, RE::TE
         if (fake_formid != fake_bound->GetFormID()) {
             logger::warn("Fake container formid changed from {} to {}", fake_formid, fake_bound->GetFormID());
         }
-        logger::trace("Fake container found in {} with name {} and formid {}.",
+        logger::trace("Fake container found in {} with name {} and formid {:x}.",
                       cont_of_fakecont->GetDisplayFullName(), fake_bound->GetName(), fake_bound->GetFormID());
         qTRICK__(chest_ref, cont_ref);
     }
@@ -1769,7 +1774,7 @@ void Manager::HandleFormDelete_(const RefID chest_refid) {
         MsgBoxesNotifs::InGame::CustomMsg(msg);
     } else {
         const auto msg =
-            std::format("Your container with formid {} was deleted by the game. Will try to return your items now.",
+            std::format("Your container with formid {:x} was deleted by the game. Will try to return your items now.",
                         real_formid);
         MsgBoxesNotifs::InGame::CustomMsg(msg);
     }
@@ -1803,12 +1808,12 @@ void Manager::Print() {
         
     for (const auto& src : sources) { 
         if (!src.data.empty()) {
-            logger::trace("Printing............Source formid: {}", src.formid);
+            logger::trace("Printing............Source formid: {:x}", src.formid);
             Functions::printMap(src.data);
         }
     }
     for (const auto& [chest_ref, cont_ref] : ChestToFakeContainer) {
-        logger::trace("Chest refid: {}, Real container formid: {}, Fake container formid: {}", chest_ref, cont_ref.outerKey, cont_ref.innerKey);
+        logger::trace("Chest refid: {:x}, Real container formid: {:x}, Fake container formid: {:x}", chest_ref, cont_ref.outerKey, cont_ref.innerKey);
     }
     //Utilities::printMap(ChestToFakeContainer);
 }
@@ -1876,12 +1881,12 @@ void Manager::ReceiveData() {
             if (realcontForm != src.formid) continue;
             if (!src.data.insert({chestRef, contRef}).second) {
                 return RaiseMngrErr(
-                    std::format("RefID {} or RefID {} at formid {} already exists in sources data.", chestRef,
+                    std::format("RefID {:x} or RefID {:x} at formid {:x} already exists in sources data.", chestRef,
                                 contRef, realcontForm));
             }
             if (!ChestToFakeContainer.insert({chestRef, {realcontForm, fakecontForm.id}}).second) {
                 return RaiseMngrErr(
-                    std::format("realcontForm {} with fakecontForm {} at chestref {} already exists in "
+                    std::format("realcontForm {:x} with fakecontForm {:x} at chestref {:x} already exists in "
                                 "ChestToFakeContainer.",
                                 chestRef, realcontForm, fakecontForm.id));
             }
@@ -1897,7 +1902,7 @@ void Manager::ReceiveData() {
     // handle the unmathced chests
     // user probably changed the INI. we try to retrieve the items.
     for (const auto& [chestRef_, RealFakeForm_] : unmathced_chests) {
-        logger::warn("FormID {} not found in sources.", RealFakeForm_.outerKey);
+        logger::warn("FormID {:x} not found in sources.", RealFakeForm_.outerKey);
         if (other_settings[Settings::otherstuffKeys[0]]) {
             MsgBoxesNotifs::InGame::ProblemWithContainer(std::to_string(RealFakeForm_.outerKey));
         }
@@ -1936,7 +1941,7 @@ void Manager::ReceiveData() {
         const auto _real_fid = ChestToFakeContainer[chest_ref].outerKey;
         const auto real_editorid = GetEditorID(_real_fid);
         if (real_editorid.empty()) {
-            logger::critical("Real container with formid {} has no editorid.", _real_fid);
+            logger::critical("Real container with formid {:x} has no editorid.", _real_fid);
             return RaiseMngrErr("Real container has no editorid.");
         }
         const auto _fake_fid = ChestToFakeContainer[chest_ref].innerKey;
@@ -1969,13 +1974,13 @@ void Manager::ReceiveData() {
 			const auto fakecontainerchestid = GetFakeContainerChest(fake_formid);
             const auto [is_equipped_x,is_faved_x ] = chest_equipped_fav[fakecontainerchestid];
             if (is_equipped_x) {
-                logger::trace("Equipping fake container with formid {}", fake_formid);
+                logger::trace("Equipping fake container with formid {:x}", fake_formid);
                 Inventory::EquipItem((*it)->object);
                 /*RE::ActorEquipManager::GetSingleton()->EquipObject(player_ref->As<RE::Actor>(), (*it)->object, 
                         nullptr,1,(const RE::BGSEquipSlot*)nullptr,true,false,false,false);*/
             }
             if (is_faved_x) {
-                logger::trace("Favoriting fake container with formid {}", fake_formid);
+                logger::trace("Favoriting fake container with formid {:x}", fake_formid);
                 Inventory::FavoriteItem((*it)->object,player_ref);
                 //inventory_changes->SetFavorite((*it), (*it)->extraLists->front());
             }
